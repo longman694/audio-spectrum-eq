@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Spectral Analysis</title>
+        <style>
+            body {
+                color: #EEEEEE;
+                background-color: #030303;
+            }
+            #audio-container audio {
+                width: 100%;
+            }
+            #container {
+                background-color: #111111;
+                margin-left: 255px;
+                margin-right: 20px;
+                height: 600px;
+            }
+        </style>
+    </head>
+    <body>
+        <div><button id="btn_destroy">Destroy audioMotion</button></div>
+        <div id="container">
+            <div id="notice">
+                <p>
+                    In this demo, the <strong>audioMotion-analyzer</strong> object is instantiated within a function triggered by a user click.
+                    This method prevents the <em>"The AudioContext was not allowed to start"</em> warning message in the browser console and also
+                    ensures that the AudioContext is started before any attempt to play audio.
+                </p>
+    
+                <p>
+                    <strong>audioMotion-analyzer</strong> automatically starts its AudioContext on the first user gesture it detects, but be aware
+                    that clicks on native controls of <code>&lt;audio&gt;</code> or <code>&lt;video&gt;</code> elements cannot be intercepted by JavaScript.
+                </p>
+                <label for="btn_start">Start audioMotion</label><input id="btn_start" type="file" />
+            </div>
+        </div>
+        <div id="audio-container"></div>
+        <div id="message" class="box center"></div>
+
+        <weq8-ui />
+        <div>more <a href="https://audiomotion.dev/#/" target="_blank">settings</a></div>
+
+    
+        <script type="module">
+            import AudioMotionAnalyzer from 'https://cdn.skypack.dev/audiomotion-analyzer?min';
+            import { WEQ8Runtime } from "https://cdn.skypack.dev/weq8";
+            import "https://cdn.skypack.dev/weq8/ui";
+    
+            const container      = document.getElementById('container'),
+                  audioContainer = document.getElementById('audio-container'),
+                  destroyButton  = document.getElementById('btn_destroy'),
+                  startButton    = document.getElementById('btn_start'),
+                  messageDiv     = document.getElementById('message'),
+                  noticeDiv      = document.getElementById('notice');
+    
+            destroyButton.addEventListener( 'click', destroy );
+            startButton.addEventListener( 'change', initialize );
+    
+            let audioEl, audioMotion, source; // global variables for the audio element and analyzer object
+    
+            function initialize() {
+                // create new <audio> element
+                var file = this.files[0]
+                var blob = window.URL || window.webkitURL;
+                if (!blob) {
+                    console.log('Your browser does not support Blob URLs :(');
+                    return;           
+                }
+                var fileURL = blob.createObjectURL(file);
+                // var audioCtx = AudioContext();
+
+                audioEl = new Audio(fileURL);
+                audioEl.controls = true;
+                audioEl.crossOrigin = 'anonymous';
+                audioEl.onloadstart  = () => messageDiv.innerText = 'Buffering audio... please wait...';
+                audioEl.onloadeddata = () => {
+                    messageDiv.innerText = '';
+                    audioEl.play();
+                }
+                
+                var context = new (window.AudioContext || window.webkitAudioContext)();
+                source = context.createMediaElementSource(audioEl);
+                var weq8 = new WEQ8Runtime(context);
+                
+                audioMotion = new AudioMotionAnalyzer( container, {
+                    audioCtx: context,
+                    connectSpeakers: false,
+                    frequencyScale: 'log',
+                    minFreq: 10,
+                    maxFreq: 24000,
+                    gradient: 'prism',
+                    mode: 0,  // most resolution
+                    ansiBands: true,
+                    smoothing: 0.4,
+                    channelLayout: 'dual-vertical',
+                    // set your preferred options here
+                });
+
+                source.connect(weq8.input);
+                audioMotion.connectInput(weq8)
+                // weq8.connect(audioMotion.input);
+                audioMotion.connectOutput(context.destination);
+
+                document.querySelector("weq8-ui").runtime = weq8;
+                
+                audioContainer.append( audioEl ); // add it to the DOM
+
+    
+                noticeDiv.style.display = 'none';
+                destroyButton.style.display = 'block';
+            }
+    
+            function destroy() {
+                // stop audio element and remove it from the DOM
+                audioEl.pause();
+                audioEl.remove();
+    
+                // destroy audioMotion instance
+                audioMotion.destroy();
+    
+                console.log( 'isOn: ', audioMotion.isOn );
+                console.log( 'isDestroyed: ', audioMotion.isDestroyed );
+                console.log( 'AudioContext state: ', audioMotion.audioCtx.state );
+    
+                // clear references to objects so they can be released from memory
+                audioMotion = null;
+                audioEl = null;
+    
+                noticeDiv.style.display = '';
+                destroyButton.style.display = '';
+            }
+        </script>
+    </body>
+</html>
