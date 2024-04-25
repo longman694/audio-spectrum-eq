@@ -1,11 +1,20 @@
 <!DOCTYPE html>
-<html>
+<html class="sl-theme-dark">
     <head>
         <title>Spectral Analysis</title>
         <style>
             body {
                 color: #EEEEEE;
                 background-color: #030303;
+            }
+            #control-container {
+                width: 100%;
+                display: flex;
+                align-items: center;
+            }
+            #audio-container {
+                flex-grow: 1;
+                margin-right: 0.2em;
             }
             #audio-container audio {
                 width: 100%;
@@ -17,25 +26,21 @@
                 height: 600px;
             }
         </style>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/themes/dark.css" />
+        <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/shoelace-autoloader.js"></script>
     </head>
     <body>
-        <div><button id="btn_destroy">Destroy audioMotion</button></div>
         <div id="container">
             <div id="notice">
-                <p>
-                    In this demo, the <strong>audioMotion-analyzer</strong> object is instantiated within a function triggered by a user click.
-                    This method prevents the <em>"The AudioContext was not allowed to start"</em> warning message in the browser console and also
-                    ensures that the AudioContext is started before any attempt to play audio.
-                </p>
-    
-                <p>
-                    <strong>audioMotion-analyzer</strong> automatically starts its AudioContext on the first user gesture it detects, but be aware
-                    that clicks on native controls of <code>&lt;audio&gt;</code> or <code>&lt;video&gt;</code> elements cannot be intercepted by JavaScript.
-                </p>
-                <label for="btn_start">Start audioMotion</label><input id="btn_start" type="file" />
+                <label for="btn_start">Select audio a file</label> <input id="btn_start" type="file" />
             </div>
         </div>
-        <div id="audio-container"></div>
+        <div id="control-container">
+            <div id="audio-container"></div>
+            <sl-button variant="default" size="large" style="display: none;" id="btn_destroy" circle>
+                <sl-icon name="x-lg" label="Settings"></sl-icon>
+            </sl-button>
+        </div>
         <div id="message" class="box center"></div>
 
         <weq8-ui />
@@ -128,7 +133,7 @@
                 audioEl = null;
     
                 noticeDiv.style.display = '';
-                destroyButton.style.display = '';
+                destroyButton.style.display = 'none';
             }
         </script>
     </body>
