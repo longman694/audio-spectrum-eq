@@ -191,72 +191,65 @@
                 audioMotion.connectInput(weq8);
                 audioMotion.connectOutput(audioContext.destination);
 
-                // Tap for Vectorscope
+                // Tap signal for Vectorscope
                 if (audioMotion.analyzer) {
                      tapSource = audioMotion.analyzer;
                 } else {
                      tapSource = weq8;
                 }
-
-                // --- CREATE LOUDNESS WEIGHTING FILTER ---
-                // This mimics K-Weighting (used in LUFS) to balance Bass vs Highs
-                const kWeightInput = audioContext.createBiquadFilter();
-                kWeightInput.type = 'highshelf'; 
-                kWeightInput.frequency.value = 1500;
-                kWeightInput.gain.value = 4; // Boost Highs (+4dB)
-
-                const kWeightLowCut = audioContext.createBiquadFilter();
-                kWeightLowCut.type = 'highpass'; 
-                kWeightLowCut.frequency.value = 60; // Cut Sub rumble
-                kWeightLowCut.Q.value = 0.5;
-
-                // Makeup Gain (because HighPass reduces overall energy)
-                const makeupGain = audioContext.createGain();
-                makeupGain.gain.value = 1.5; 
-
-                // Chain: Tap -> HighShelf -> HighPass -> Gain
-                tapSource.connect(kWeightInput);
-                kWeightInput.connect(kWeightLowCut);
-                kWeightLowCut.connect(makeupGain);
-                
-                const weightingOutput = makeupGain; 
                 
                 // --- BUILD PARALLEL FILTER BANK ---
+                // We create a separate path for each band:
+                // Tap -> Filter(s) -> Splitter -> AnalyserL/R
+                
+                // Clear old nodes if any
                 bandNodes = [];
 
                 bands.forEach(band => {
+                    // 1. Create Filter Chain
                     let inputNode, outputNode;
                     
-                    if (!band.min) { 
+                    if (!band.min) { // Lowpass only (Sub)
                         const lp = audioContext.createBiquadFilter();
-                        lp.type = 'lowpass'; lp.frequency.value = band.max;
+                        lp.type = 'lowpass';
+                        lp.frequency.value = band.max;
                         inputNode = lp; outputNode = lp;
-                    } else if (!band.max) { 
+                    } else if (!band.max) { // Highpass only (Air)
                         const hp = audioContext.createBiquadFilter();
-                        hp.type = 'highpass'; hp.frequency.value = band.min;
+                        hp.type = 'highpass';
+                        hp.frequency.value = band.min;
                         inputNode = hp; outputNode = hp;
-                    } else { 
+                    } else { // Bandpass (HP + LP)
                         const hp = audioContext.createBiquadFilter();
-                        hp.type = 'highpass'; hp.frequency.value = band.min;
+                        hp.type = 'highpass';
+                        hp.frequency.value = band.min;
+                        
                         const lp = audioContext.createBiquadFilter();
-                        lp.type = 'lowpass'; lp.frequency.value = band.max;
+                        lp.type = 'lowpass';
+                        lp.frequency.value = band.max;
+                        
                         hp.connect(lp);
                         inputNode = hp; outputNode = lp;
                     }
                     
+                    // 2. Create Splitter & Analysers
                     const split = audioContext.createChannelSplitter(2);
                     const anL = audioContext.createAnalyser();
                     const anR = audioContext.createAnalyser();
-                    anL.fftSize = 2048; anR.fftSize = 2048;
+                    anL.fftSize = 2048; 
+                    anR.fftSize = 2048;
                     
-                    // Connect WEIGHTED signal to band filters
-                    weightingOutput.connect(inputNode);
+                    // 3. Connect Chain
+                    tapSource.connect(inputNode);
                     outputNode.connect(split);
                     split.connect(anL, 0);
                     split.connect(anR, 1);
                     
+                    // 4. Store for Analysis Loop
                     bandNodes.push({
-                        l: anL, r: anR,
+                        l: anL,
+                        r: anR,
+                        // Pre-allocate buffers for performance
                         dataL: new Uint8Array(anL.frequencyBinCount),
                         dataR: new Uint8Array(anR.frequencyBinCount)
                     });
@@ -268,6 +261,7 @@
                 destroyButton.style.display = 'block';
             }
 
+
             // --- DRAWING LOGIC ---
             function drawVectorscope() {
                 if(bandNodes.length === 0 || !vsCtx) return;
@@ -275,14 +269,21 @@
                 const width = canvasVS.width;
                 const height = canvasVS.height;
                 const bufferLength = bandNodes[0].l.frequencyBinCount;
+
+                // This will hold the maximum magnitude for each angle across ALL bands
                 let compositeFrameBins = new Float32Array(numAngleBins).fill(0);
 
-                // Analyze all bands
+                // --- 1. ANALYZE ALL BANDS ---
+                // We loop through every band, calculate its shape, and merge it into compositeFrameBins
                 for (let b = 0; b < bandNodes.length; b++) {
                     const node = bandNodes[b];
+                    
                     node.l.getByteTimeDomainData(node.dataL);
                     node.r.getByteTimeDomainData(node.dataR);
                     
+                    // Optimization: Skip loop if band is silent? 
+                    // Hard to detect cheaply without looping, so we just loop.
+                    // We step by 8 to save CPU since we have 10 bands now.
                     for (let i = 0; i < bufferLength; i += 8) {
                         const absL = Math.abs((node.dataL[i] / 128.0) - 1.0);
                         const absR = Math.abs((node.dataR[i] / 128.0) - 1.0);
@@ -290,20 +291,22 @@
                         
                         if (sum < 0.01) continue; 
 
-                        // Normalized magnitude (Max of L or R)
                         const currentMag = Math.max(absL, absR); 
                         const stereoPos = absR / sum; 
 
                         let binIndex = Math.floor(stereoPos * (numAngleBins - 1));
                         binIndex = Math.max(0, Math.min(numAngleBins-1, binIndex));
 
+                        // MAX MERGE:
+                        // If this specific band is louder at this specific angle 
+                        // than what we've seen in other bands, use this value.
                         if (currentMag > compositeFrameBins[binIndex]) {
                              compositeFrameBins[binIndex] = currentMag;
                         }
                     }
                 }
 
-                // Decay
+                // --- 2. Update Decay (Cyan Line) ---
                 for (let i = 0; i < numAngleBins; i++) {
                     decayBins[i] *= envelopeDecay; 
                     if (compositeFrameBins[i] > decayBins[i]) {
@@ -311,22 +314,28 @@
                     }
                 }
 
-                // History
-                historyBins.push(compositeFrameBins); 
-                if (historyBins.length > historyLimit) historyBins.shift(); 
+                // --- 3. Update History (White Line) ---
+                historyBins.push(compositeFrameBins); // Push the raw composite
+                if (historyBins.length > historyLimit) {
+                    historyBins.shift(); 
+                }
                 
+                // Calculate Max over History
                 let maxWindowBins = new Float32Array(numAngleBins).fill(0);
                 for (let h = 0; h < historyBins.length; h++) {
                     const frame = historyBins[h];
                     for (let b = 0; b < numAngleBins; b++) {
-                        if (frame[b] > maxWindowBins[b]) maxWindowBins[b] = frame[b];
+                        if (frame[b] > maxWindowBins[b]) {
+                            maxWindowBins[b] = frame[b];
+                        }
                     }
                 }
 
-                // Draw
+                // --- 4. Draw ---
                 vsCtx.clearRect(0,0, width, height);
                 vsCtx.fillStyle = '#050505';
                 vsCtx.fillRect(0,0,width,height);
+
                 drawGuideLines(width, height);
 
                 function drawOutline(bins, color, widthVal, fillStyle) {
@@ -360,7 +369,10 @@
                     vsCtx.stroke();
                 }
 
+                // Draw Max Window (Back Layer) - White/Ghost
                 drawOutline(maxWindowBins, 'rgba(255, 255, 255, 0.4)', 1, null);
+
+                // Draw Decay (Front Layer) - Cyan
                 drawOutline(decayBins, '#00ccff', 2, 'rgba(0, 204, 255, 0.15)');
 
                 vsAnimationId = requestAnimationFrame(drawVectorscope);
@@ -385,7 +397,7 @@
                 audioEl.remove(); 
                 audioMotion.destroy();
                 historyBins = [];
-                bandNodes = []; 
+                bandNodes = []; // Clear refs
                 audioMotion = null; 
                 audioEl = null;
                 noticeDiv.style.display = 'flex'; 
