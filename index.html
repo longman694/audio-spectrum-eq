@@ -116,17 +116,46 @@
             startButton.addEventListener( 'change', initialize );
     
             let audioEl, audioMotion, source, weq8;
+            let audioContext;
             
             // --- VECTORSCOPE VARIABLES ---
-            let vsCtx, splitter, analyserL, analyserR, vsAnimationId;
+            let vsCtx, vsAnimationId;
+            let tapSource = null;
+
+            // Define the Bands
+            const bands = [
+                { name: 'sub', max: 32 },
+                { name: 'sub', min: 32, max: 63 },
+                { name: 'low', min: 63, max: 88 },
+                { name: 'low', min: 88, max: 125 },
+                { name: 'low-mid', min: 125, max: 176 },
+                { name: 'low-mid', min: 176, max: 250 },
+                { name: 'mid', min: 250, max: 353 },
+                { name: 'mid', min: 353, max: 500 },
+                { name: 'mid-high', min: 500, max: 707 },
+                { name: 'mid-high', min: 707, max: 1000 },
+                { name: 'high', min: 1000, max: 1414 },
+                { name: 'high', min: 1414, max: 2000 },
+                { name: 'presence', min: 2000, max: 2828 },
+                { name: 'presence', min: 2828, max: 4000 },
+                { name: 'brilliance', min: 4000, max: 5656 },
+                { name: 'brilliance', min: 5656, max: 8000 },
+                { name: 'upper', min: 8000, max: 11313 },
+                { name: 'upper', min: 11313, max: 16000 },
+                { name: 'air', min: 16000 }
+            ];
+            
+            // Arrays to hold the Web Audio nodes for each band
+            let bandNodes = []; 
+
             const numAngleBins = 120; 
             
-            // System 1: Decay (The cyan active line)
+            // Layer 1: The Decay Envelope (Cyan)
             let decayBins = new Float32Array(numAngleBins).fill(0);
-            const envelopeDecay = 0.92; // Adjust for responsiveness
+            const envelopeDecay = 0.92; 
             
-            // System 2: History (The white max hold line)
-            const historyLimit = 120; // 2 seconds at 60fps
+            // Layer 2: The History Peak (White)
+            const historyLimit = 120; // 2 seconds
             let historyBins = []; 
 
             function initialize() {
@@ -147,34 +176,84 @@
                     drawVectorscope(); 
                 }
                 
-                var context = new (window.AudioContext || window.webkitAudioContext)();
-                source = context.createMediaElementSource(audioEl);
-                weq8 = new WEQ8Runtime(context);
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                source = audioContext.createMediaElementSource(audioEl);
+                weq8 = new WEQ8Runtime(audioContext);
                 
                 audioMotion = new AudioMotionAnalyzer( container, {
-                    audioCtx: context, connectSpeakers: false, frequencyScale: 'log',
+                    audioCtx: audioContext, connectSpeakers: false, frequencyScale: 'log',
                     minFreq: 10, maxFreq: 24000, gradient: 'prism', mode: 0,
                     ansiBands: true, smoothing: 0.4, channelLayout: 'dual-vertical',
                 });
 
-                splitter = context.createChannelSplitter(2);
-                analyserL = context.createAnalyser();
-                analyserR = context.createAnalyser();
-                analyserL.fftSize = 2048; 
-                analyserR.fftSize = 2048;
-
+                // --- ROUTING ---
                 source.connect(weq8.input);
                 audioMotion.connectInput(weq8);
-                audioMotion.connectOutput(context.destination);
+                audioMotion.connectOutput(audioContext.destination);
 
+                // Tap signal for Vectorscope
                 if (audioMotion.analyzer) {
-                     audioMotion.analyzer.connect(splitter);
+                     tapSource = audioMotion.analyzer;
                 } else {
-                     weq8.connect(splitter);
+                     tapSource = weq8;
                 }
                 
-                splitter.connect(analyserL, 0);
-                splitter.connect(analyserR, 1);
+                // --- BUILD PARALLEL FILTER BANK ---
+                // We create a separate path for each band:
+                // Tap -> Filter(s) -> Splitter -> AnalyserL/R
+                
+                // Clear old nodes if any
+                bandNodes = [];
+
+                bands.forEach(band => {
+                    // 1. Create Filter Chain
+                    let inputNode, outputNode;
+                    
+                    if (!band.min) { // Lowpass only (Sub)
+                        const lp = audioContext.createBiquadFilter();
+                        lp.type = 'lowpass';
+                        lp.frequency.value = band.max;
+                        inputNode = lp; outputNode = lp;
+                    } else if (!band.max) { // Highpass only (Air)
+                        const hp = audioContext.createBiquadFilter();
+                        hp.type = 'highpass';
+                        hp.frequency.value = band.min;
+                        inputNode = hp; outputNode = hp;
+                    } else { // Bandpass (HP + LP)
+                        const hp = audioContext.createBiquadFilter();
+                        hp.type = 'highpass';
+                        hp.frequency.value = band.min;
+                        
+                        const lp = audioContext.createBiquadFilter();
+                        lp.type = 'lowpass';
+                        lp.frequency.value = band.max;
+                        
+                        hp.connect(lp);
+                        inputNode = hp; outputNode = lp;
+                    }
+                    
+                    // 2. Create Splitter & Analysers
+                    const split = audioContext.createChannelSplitter(2);
+                    const anL = audioContext.createAnalyser();
+                    const anR = audioContext.createAnalyser();
+                    anL.fftSize = 2048; 
+                    anR.fftSize = 2048;
+                    
+                    // 3. Connect Chain
+                    tapSource.connect(inputNode);
+                    outputNode.connect(split);
+                    split.connect(anL, 0);
+                    split.connect(anR, 1);
+                    
+                    // 4. Store for Analysis Loop
+                    bandNodes.push({
+                        l: anL,
+                        r: anR,
+                        // Pre-allocate buffers for performance
+                        dataL: new Uint8Array(anL.frequencyBinCount),
+                        dataR: new Uint8Array(anR.frequencyBinCount)
+                    });
+                });
 
                 document.querySelector("weq8-ui").runtime = weq8;
                 audioContainer.append( audioEl );
@@ -182,54 +261,66 @@
                 destroyButton.style.display = 'block';
             }
 
+
             // --- DRAWING LOGIC ---
             function drawVectorscope() {
-                if(!analyserL || !analyserR || !vsCtx) return;
+                if(bandNodes.length === 0 || !vsCtx) return;
 
                 const width = canvasVS.width;
                 const height = canvasVS.height;
-                const bufferLength = analyserL.frequencyBinCount;
-                const dataL = new Uint8Array(bufferLength);
-                const dataR = new Uint8Array(bufferLength);
+                const bufferLength = bandNodes[0].l.frequencyBinCount;
 
-                analyserL.getByteTimeDomainData(dataL);
-                analyserR.getByteTimeDomainData(dataR);
+                // This will hold the maximum magnitude for each angle across ALL bands
+                let compositeFrameBins = new Float32Array(numAngleBins).fill(0);
 
-                // --- 1. Calculate Current Frame ---
-                let currentFrameBins = new Float32Array(numAngleBins).fill(0);
+                // --- 1. ANALYZE ALL BANDS ---
+                // We loop through every band, calculate its shape, and merge it into compositeFrameBins
+                for (let b = 0; b < bandNodes.length; b++) {
+                    const node = bandNodes[b];
+                    
+                    node.l.getByteTimeDomainData(node.dataL);
+                    node.r.getByteTimeDomainData(node.dataR);
+                    
+                    // Optimization: Skip loop if band is silent? 
+                    // Hard to detect cheaply without looping, so we just loop.
+                    // We step by 8 to save CPU since we have 10 bands now.
+                    for (let i = 0; i < bufferLength; i += 8) {
+                        const absL = Math.abs((node.dataL[i] / 128.0) - 1.0);
+                        const absR = Math.abs((node.dataR[i] / 128.0) - 1.0);
+                        const sum = absL + absR;
+                        
+                        if (sum < 0.01) continue; 
 
-                for (let i = 0; i < bufferLength; i += 4) {
-                    const absL = Math.abs((dataL[i] / 128.0) - 1.0);
-                    const absR = Math.abs((dataR[i] / 128.0) - 1.0);
-                    const sum = absL + absR;
-                    if (sum < 0.01) continue; 
+                        const currentMag = Math.max(absL, absR); 
+                        const stereoPos = absR / sum; 
 
-                    const currentMag = sum / 2; 
-                    const stereoPos = absR / sum; 
+                        let binIndex = Math.floor(stereoPos * (numAngleBins - 1));
+                        binIndex = Math.max(0, Math.min(numAngleBins-1, binIndex));
 
-                    let binIndex = Math.floor(stereoPos * (numAngleBins - 1));
-                    binIndex = Math.max(0, Math.min(numAngleBins-1, binIndex));
-
-                    if (currentMag > currentFrameBins[binIndex]) {
-                         currentFrameBins[binIndex] = currentMag;
+                        // MAX MERGE:
+                        // If this specific band is louder at this specific angle 
+                        // than what we've seen in other bands, use this value.
+                        if (currentMag > compositeFrameBins[binIndex]) {
+                             compositeFrameBins[binIndex] = currentMag;
+                        }
                     }
                 }
 
-                // --- 2. Update Decay System ---
+                // --- 2. Update Decay (Cyan Line) ---
                 for (let i = 0; i < numAngleBins; i++) {
-                    decayBins[i] *= envelopeDecay; // Shrink
-                    if (currentFrameBins[i] > decayBins[i]) {
-                        decayBins[i] = currentFrameBins[i]; // Push up
+                    decayBins[i] *= envelopeDecay; 
+                    if (compositeFrameBins[i] > decayBins[i]) {
+                        decayBins[i] = compositeFrameBins[i]; 
                     }
                 }
 
-                // --- 3. Update History System ---
-                historyBins.push(currentFrameBins);
+                // --- 3. Update History (White Line) ---
+                historyBins.push(compositeFrameBins); // Push the raw composite
                 if (historyBins.length > historyLimit) {
                     historyBins.shift(); 
                 }
                 
-                // Find Max over History
+                // Calculate Max over History
                 let maxWindowBins = new Float32Array(numAngleBins).fill(0);
                 for (let h = 0; h < historyBins.length; h++) {
                     const frame = historyBins[h];
@@ -247,7 +338,6 @@
 
                 drawGuideLines(width, height);
 
-                // Helper to draw a shape
                 function drawOutline(bins, color, widthVal, fillStyle) {
                     const centerX = width / 2;
                     const bottomY = height - 5; 
@@ -279,10 +369,10 @@
                     vsCtx.stroke();
                 }
 
-                // Draw Max Window (Back Layer) - Color: White/Ghost
+                // Draw Max Window (Back Layer) - White/Ghost
                 drawOutline(maxWindowBins, 'rgba(255, 255, 255, 0.4)', 1, null);
 
-                // Draw Decay (Front Layer) - Color: Cyan
+                // Draw Decay (Front Layer) - Cyan
                 drawOutline(decayBins, '#00ccff', 2, 'rgba(0, 204, 255, 0.15)');
 
                 vsAnimationId = requestAnimationFrame(drawVectorscope);
@@ -307,6 +397,7 @@
                 audioEl.remove(); 
                 audioMotion.destroy();
                 historyBins = [];
+                bandNodes = []; // Clear refs
                 audioMotion = null; 
                 audioEl = null;
                 noticeDiv.style.display = 'flex'; 
