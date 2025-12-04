@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="sl-theme-dark">
     <head>
-        <title>Spectral Analysis + Phase Vectorscope</title>
+        <title>Spectral Analysis + EQ + Phase Vectorscope</title>
         <style>
             body {
                 color: #EEEEEE;
@@ -47,17 +47,6 @@
                 height: 400px;
             }
             .center { text-align: center; }
-            .phase-guide {
-                position: absolute;
-                top: 350px; 
-                width: 800px;
-                display: flex;
-                justify-content: space-between;
-                padding: 0 30px;
-                font-size: 0.9em;
-                color: #555;
-                pointer-events: none;
-            }
         </style>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/themes/dark.css" />
         <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/shoelace-autoloader.js"></script>
@@ -90,13 +79,6 @@
                 <div id="vectorscope-container" style="position: relative; width: 800px; margin: 20px auto;">
                     <h3 style="margin: 0 0 10px 0; color: #888; text-align: center;">Polar Phase Scope</h3>
                     <canvas id="vectorscope" width="800" height="400"></canvas>
-                    <div class="phase-guide">
-                        <span>-1 (Invert)</span>
-                        <span>L</span>
-                        <span>+1 (Mono)</span>
-                        <span>R</span>
-                        <span>-1 (Invert)</span>
-                    </div>
                 </div>
             </sl-tab-panel>
         </sl-tab-group>
@@ -127,7 +109,6 @@
             let tapSource = null;
             let splitter, analyserL, analyserR;
 
-            // Expanded bins to cover full 180 degrees nicely
             const numAngleBins = 180; 
             
             // Layer 1: The Decay Envelope (Cyan)
@@ -161,9 +142,18 @@
                 weq8 = new WEQ8Runtime(audioContext);
                 
                 audioMotion = new AudioMotionAnalyzer( container, {
-                    audioCtx: audioContext, connectSpeakers: false, frequencyScale: 'log',
-                    minFreq: 10, maxFreq: 24000, gradient: 'prism', mode: 0,
-                    ansiBands: true, smoothing: 0.4, channelLayout: 'dual-vertical',
+                    audioCtx: audioContext, 
+                    connectSpeakers: false, 
+                    frequencyScale: 'log',
+                    minFreq: 10, 
+                    maxFreq: 24000, 
+                    gradient: 'prism', 
+                    mode: 0,
+                    ansiBands: true,
+                    fftSize: 8192,
+                    smoothing: 0.5, 
+                    channelLayout: 'dual-vertical',
+                    alphaBars: true,
                 });
 
                 // --- ROUTING ---
@@ -179,13 +169,11 @@
                 }
                 
                 // --- PHASE ANALYSIS SETUP ---
-                // We use TimeDomain data now because FFT Magnitude loses phase info.
-                // TimeDomain allows us to see Inverted/Anti-phase signals.
+                // Using ChannelSplitter to get raw Time Domain data
                 splitter = audioContext.createChannelSplitter(2);
                 analyserL = audioContext.createAnalyser();
                 analyserR = audioContext.createAnalyser();
                 
-                // 4096 gives us good resolution for the Lissajous calculation
                 analyserL.fftSize = 4096; 
                 analyserR.fftSize = 4096;
 
@@ -199,7 +187,6 @@
                 destroyButton.style.display = 'block';
             }
 
-
             // --- DRAWING LOGIC ---
             function drawVectorscope() {
                 if(!analyserL || !analyserR || !vsCtx) return;
@@ -211,57 +198,32 @@
                 const dataL = new Uint8Array(bufferLength);
                 const dataR = new Uint8Array(bufferLength);
                 
-                // Get WAVEFORM data (Time Domain)
-                // Values are 0-255. 128 is Zero/Silence.
+                // Get Time Domain Data (Waveform)
                 analyserL.getByteTimeDomainData(dataL);
                 analyserR.getByteTimeDomainData(dataR);
 
                 let compositeFrameBins = new Float32Array(numAngleBins).fill(0);
 
-                // Analyze waveform
-                for (let i = 0; i < bufferLength; i+=4) { // Step 4 for perf
-                    // Normalize to -1.0 to 1.0
+                // Analyze waveform (Raw Phase Analysis)
+                for (let i = 0; i < bufferLength; i+=4) { 
                     const L = (dataL[i] / 128.0) - 1.0;
                     const R = (dataR[i] / 128.0) - 1.0;
                     
-                    // Lissajous / Mid-Side Conversion
-                    // X = Side (R - L to match standard orientation)
-                    // Y = Mid  (L + R)
                     let x = (R - L);
                     let y = (L + R);
 
-                    // Magnitude (Radius)
-                    // We multiply by 0.707 to keep scale roughly 0..1
                     const currentMag = Math.sqrt(x*x + y*y) * 0.707; 
 
                     if (currentMag < 0.01) continue;
 
-                    // Angle Calculation (Phase)
-                    // We want to map half-circle upper hemisphere.
-                    // If y < 0 (lower hemisphere), we flip vector because audio polarity 
-                    // is symmetric for this visualization (-L/-R is same energy as L/R).
-                    if (y < 0) {
-                        x = -x;
-                        y = -y;
-                    }
+                    if (y < 0) { x = -x; y = -y; } // Upper hemisphere mapping
 
-                    // atan2(y, x) gives angle. 
-                    // 0 = Right, PI = Left, PI/2 = Up (Mono).
                     const angle = Math.atan2(y, x); 
 
-                    // Map Angle (0 to PI) to Bin Index
-                    // angle is in radians 0..3.14159
                     let binIndex = Math.floor((angle / Math.PI) * (numAngleBins - 1));
-                    
-                    // Reverse index so Left is Left on screen?
-                    // atan2: 0 is Right. PI is Left.
-                    // So Left(PI) -> Index High. Right(0) -> Index Low.
-                    // If we want array[0] to be Left (visual 180 deg):
                     binIndex = (numAngleBins - 1) - binIndex;
-                    
                     binIndex = Math.max(0, Math.min(numAngleBins-1, binIndex));
 
-                    // Store Peak
                     if (currentMag > compositeFrameBins[binIndex]) {
                          compositeFrameBins[binIndex] = currentMag;
                     }
@@ -305,26 +267,13 @@
 
                     vsCtx.beginPath();
                     
-                    // We draw from Right (0 deg) to Left (180 deg)
-                    // Bins[0] corresponds to Left (PI) based on our reverse mapping above?
-                    // Let's check:
-                    // binIndex = (numAngleBins - 1) - (angle/PI * max)
-                    // Angle PI (Left) -> binIndex = 0.
-                    // Angle 0 (Right) -> binIndex = max.
-                    
-                    // So we iterate i from 0 to max.
-                    // i=0 is Left (PI). i=max is Right (0).
-                    
-                    // Start from Left side (PI)
-                    // angleRad = PI - (percent * PI)
-                    
                     for (let i = 0; i < numAngleBins; i++) {
                         let magnitude = Math.pow(bins[i], 0.8);
                         const baseRadius = 5; 
                         const finalRadius = baseRadius + (magnitude * (maxRadius - baseRadius));
                         
                         const percent = i / (numAngleBins - 1);
-                        const angleRad = Math.PI - (percent * Math.PI); // PI to 0
+                        const angleRad = Math.PI - (percent * Math.PI); 
 
                         const drawX = centerX + (Math.cos(angleRad) * finalRadius);
                         const drawY = bottomY - (Math.sin(angleRad) * finalRadius);
@@ -333,7 +282,6 @@
                         else vsCtx.lineTo(drawX, drawY);
                     }
                     
-                    // Close shape to center for fill
                     vsCtx.lineTo(centerX, bottomY); 
                     vsCtx.closePath();
 
@@ -346,10 +294,7 @@
                     vsCtx.stroke();
                 }
 
-                // Max Window (Ghost)
                 drawOutline(maxWindowBins, 'rgba(255, 255, 255, 0.4)', 1, null);
-
-                // Decay (Active)
                 drawOutline(decayBins, '#00ccff', 2, 'rgba(0, 204, 255, 0.15)');
 
                 vsAnimationId = requestAnimationFrame(drawVectorscope);
@@ -359,22 +304,49 @@
                 vsCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
                 vsCtx.lineWidth = 1;
                 const cx = w/2;
-                const by = h-5;
+                const by = h+8;
                 const r = Math.min(w/2, h) * 0.95;
-                vsCtx.beginPath();
                 
+                // Draw Lines
+                vsCtx.beginPath();
                 // 135 deg (Left)
                 vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + Math.cos(2.356)*r, by - Math.sin(2.356)*r);
                 // 45 deg (Right)
                 vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + Math.cos(0.785)*r, by - Math.sin(0.785)*r);
                 // Center (Mono)
                 vsCtx.moveTo(cx, by); vsCtx.lineTo(cx, by - r);
-                
                 // Flat Lines (Anti-phase)
-                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx - r, by); // Left flat
-                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + r, by); // Right flat
-                
+                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx - r, by); 
+                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + r, by); 
                 vsCtx.stroke();
+
+                // Draw Labels
+                vsCtx.fillStyle = "#888"; // Gray text
+                vsCtx.font = "12px sans-serif";
+                
+                const textR = r + 15; // Push text slightly out from line tip
+
+                // Top Center (Mono)
+                vsCtx.textAlign = "center";
+                vsCtx.fillText("Mono", cx, by - textR);
+
+                // Left (135 deg)
+                const lx = cx + Math.cos(2.356) * textR;
+                const ly = by - Math.sin(2.356) * textR;
+                vsCtx.textAlign = "right";
+                vsCtx.fillText("L", lx, ly);
+
+                // Right (45 deg)
+                const rx = cx + Math.cos(0.785) * textR;
+                const ry = by - Math.sin(0.785) * textR;
+                vsCtx.textAlign = "left";
+                vsCtx.fillText("R", rx, ry);
+
+                // Bottom Corners (Invert)
+                vsCtx.textAlign = "left";
+                vsCtx.fillText("-1", cx - textR, by - 11);
+                vsCtx.textAlign = "right";
+                vsCtx.fillText("-1", cx + textR, by - 11);
             }
     
             function destroy() {
