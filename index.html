@@ -47,6 +47,23 @@
                 height: 400px;
             }
             .center { text-align: center; }
+            
+            /* Footer Styles */
+            footer {
+                margin-top: 30px;
+                margin-bottom: 20px;
+                color: #666;
+                font-size: 0.9em;
+                text-align: center;
+            }
+            footer a {
+                color: #888;
+                text-decoration: none;
+                transition: color 0.2s;
+            }
+            footer a:hover {
+                color: #00ccff;
+            }
         </style>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/themes/dark.css" />
         <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/shoelace-autoloader.js"></script>
@@ -78,12 +95,17 @@
             <sl-tab-panel name="Phase">
                 <div id="vectorscope-container" style="position: relative; width: 800px; margin: 20px auto;">
                     <h3 style="margin: 0 0 10px 0; color: #888; text-align: center;">Phase Vectorscope</h3>
-                    <canvas id="vectorscope" width="800" height="400"></canvas>
+                    <canvas id="vectorscope" width="700" height="350"></canvas>
                 </div>
             </sl-tab-panel>
         </sl-tab-group>
 
-        <div class="center">more <a href="https://audiomotion.dev/#/" target="_blank">settings</a></div>
+        <footer>
+            <a href="https://github.com/longman694/audio-spectrum-eq" target="_blank">
+                <sl-icon name="github"></sl-icon> View on GitHub
+            </a>
+        </footer>
+        <!-- <div class="center">more <a href="https://audiomotion.dev/#/" target="_blank">settings</a></div> -->
 
         <script type="module">
             import AudioMotionAnalyzer from 'https://cdn.skypack.dev/audiomotion-analyzer?min';
