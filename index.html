@@ -99,19 +99,18 @@
 
         <div class="center">more <a href="https://audiomotion.dev/#/" target="_blank">settings</a></div>
 
-    
         <script type="module">
             import AudioMotionAnalyzer from 'https://cdn.skypack.dev/audiomotion-analyzer?min';
             import { WEQ8Runtime } from "https://cdn.skypack.dev/weq8";
             import "https://cdn.skypack.dev/weq8/ui";
     
-            const container      = document.getElementById('container'),
+            const container       = document.getElementById('container'),
                   audioContainer = document.getElementById('audio-container'),
                   destroyButton  = document.getElementById('btn_destroy'),
                   startButton    = document.getElementById('btn_start'),
-                  messageDiv     = document.getElementById('message'),
-                  noticeDiv      = document.getElementById('notice'),
-                  canvasVS       = document.getElementById('vectorscope');
+                  messageDiv      = document.getElementById('message'),
+                  noticeDiv       = document.getElementById('notice'),
+                  canvasVS        = document.getElementById('vectorscope');
     
             destroyButton.addEventListener( 'click', destroy );
             startButton.addEventListener( 'change', initialize );
@@ -121,11 +120,16 @@
             // --- VECTORSCOPE VARIABLES ---
             let vsCtx, splitter, analyserL, analyserR, vsAnimationId;
             const numAngleBins = 120; 
-            let envelopeBins = new Float32Array(numAngleBins).fill(0);
-            const envelopeDecay = 0.94; 
+            
+            // System 1: Decay (The cyan active line)
+            let decayBins = new Float32Array(numAngleBins).fill(0);
+            const envelopeDecay = 0.92; // Adjust for responsiveness
+            
+            // System 2: History (The white max hold line)
+            const historyLimit = 120; // 2 seconds at 60fps
+            let historyBins = []; 
 
             function initialize() {
-                // Init context immediately
                 vsCtx = canvasVS.getContext('2d');
 
                 var file = this.files[0]
@@ -148,34 +152,29 @@
                 weq8 = new WEQ8Runtime(context);
                 
                 audioMotion = new AudioMotionAnalyzer( container, {
-                    audioCtx: context, 
-                    connectSpeakers: false, 
-                    frequencyScale: 'log',
-                    minFreq: 10, 
-                    maxFreq: 24000, 
-                    gradient: 'prism', 
-                    mode: 0,
-                    ansiBands: true, 
-                    smoothing: 0.4, 
-                    channelLayout: 'dual-vertical',
+                    audioCtx: context, connectSpeakers: false, frequencyScale: 'log',
+                    minFreq: 10, maxFreq: 24000, gradient: 'prism', mode: 0,
+                    ansiBands: true, smoothing: 0.4, channelLayout: 'dual-vertical',
                 });
 
-                // --- Setup Vectorscope Audio Nodes ---
                 splitter = context.createChannelSplitter(2);
                 analyserL = context.createAnalyser();
                 analyserR = context.createAnalyser();
                 analyserL.fftSize = 2048; 
                 analyserR.fftSize = 2048;
 
-                // --- Routing ---
                 source.connect(weq8.input);
                 audioMotion.connectInput(weq8);
+                audioMotion.connectOutput(context.destination);
+
+                if (audioMotion.analyzer) {
+                     audioMotion.analyzer.connect(splitter);
+                } else {
+                     weq8.connect(splitter);
+                }
                 
-                weq8.connect(splitter);
                 splitter.connect(analyserL, 0);
                 splitter.connect(analyserR, 1);
-
-                audioMotion.connectOutput(context.destination);
 
                 document.querySelector("weq8-ui").runtime = weq8;
                 audioContainer.append( audioEl );
@@ -196,13 +195,9 @@
                 analyserL.getByteTimeDomainData(dataL);
                 analyserR.getByteTimeDomainData(dataR);
 
-                // 1. Decay
-                for (let i = 0; i < numAngleBins; i++) {
-                    envelopeBins[i] *= envelopeDecay;
-                    if(envelopeBins[i] < 0.001) envelopeBins[i] = 0;
-                }
+                // --- 1. Calculate Current Frame ---
+                let currentFrameBins = new Float32Array(numAngleBins).fill(0);
 
-                // 2. Calculate Peaks
                 for (let i = 0; i < bufferLength; i += 4) {
                     const absL = Math.abs((dataL[i] / 128.0) - 1.0);
                     const absR = Math.abs((dataR[i] / 128.0) - 1.0);
@@ -215,56 +210,81 @@
                     let binIndex = Math.floor(stereoPos * (numAngleBins - 1));
                     binIndex = Math.max(0, Math.min(numAngleBins-1, binIndex));
 
-                    if (currentMag > envelopeBins[binIndex]) {
-                         envelopeBins[binIndex] = currentMag;
+                    if (currentMag > currentFrameBins[binIndex]) {
+                         currentFrameBins[binIndex] = currentMag;
                     }
                 }
 
-                // 3. Draw
+                // --- 2. Update Decay System ---
+                for (let i = 0; i < numAngleBins; i++) {
+                    decayBins[i] *= envelopeDecay; // Shrink
+                    if (currentFrameBins[i] > decayBins[i]) {
+                        decayBins[i] = currentFrameBins[i]; // Push up
+                    }
+                }
+
+                // --- 3. Update History System ---
+                historyBins.push(currentFrameBins);
+                if (historyBins.length > historyLimit) {
+                    historyBins.shift(); 
+                }
+                
+                // Find Max over History
+                let maxWindowBins = new Float32Array(numAngleBins).fill(0);
+                for (let h = 0; h < historyBins.length; h++) {
+                    const frame = historyBins[h];
+                    for (let b = 0; b < numAngleBins; b++) {
+                        if (frame[b] > maxWindowBins[b]) {
+                            maxWindowBins[b] = frame[b];
+                        }
+                    }
+                }
+
+                // --- 4. Draw ---
                 vsCtx.clearRect(0,0, width, height);
-                // Background
                 vsCtx.fillStyle = '#050505';
                 vsCtx.fillRect(0,0,width,height);
 
                 drawGuideLines(width, height);
 
-                const centerX = width / 2;
-                const bottomY = height - 5; 
-                const maxRadius = Math.min(width / 2, height) * 0.95;
+                // Helper to draw a shape
+                function drawOutline(bins, color, widthVal, fillStyle) {
+                    const centerX = width / 2;
+                    const bottomY = height - 5; 
+                    const maxRadius = Math.min(width / 2, height) * 0.95;
 
-                vsCtx.beginPath();
+                    vsCtx.beginPath();
+                    vsCtx.moveTo(centerX, bottomY); 
 
-                // Move to start point (bottom center) to close the shape for filling
-                vsCtx.moveTo(centerX, bottomY); 
-
-                // Draw the arc
-                for (let i = 0; i < numAngleBins; i++) {
-                    let magnitude = Math.pow(envelopeBins[i], 0.7); // Curve for visibility
+                    for (let i = 0; i < numAngleBins; i++) {
+                        let magnitude = Math.pow(bins[i], 0.7);
+                        const baseRadius = 5; 
+                        const finalRadius = baseRadius + (magnitude * (maxRadius - baseRadius));
+                        const percent = i / (numAngleBins - 1);
+                        const angleRad = 2.356 - (percent * (2.356 - 0.785));
+                        const drawX = centerX + (Math.cos(angleRad) * finalRadius);
+                        const drawY = bottomY - (Math.sin(angleRad) * finalRadius);
+                        vsCtx.lineTo(drawX, drawY);
+                    }
                     
-                    const baseRadius = 5; 
-                    const finalRadius = baseRadius + (magnitude * (maxRadius - baseRadius));
+                    vsCtx.lineTo(centerX, bottomY); 
+                    vsCtx.closePath();
 
-                    const percent = i / (numAngleBins - 1);
-                    // Map 0..1 to 135deg (2.356rad) .. 45deg (0.785rad)
-                    const angleRad = 2.356 - (percent * (2.356 - 0.785));
-
-                    const drawX = centerX + (Math.cos(angleRad) * finalRadius);
-                    const drawY = bottomY - (Math.sin(angleRad) * finalRadius);
-
-                    vsCtx.lineTo(drawX, drawY);
+                    if(fillStyle) {
+                        vsCtx.fillStyle = fillStyle;
+                        vsCtx.fill();
+                    }
+                    vsCtx.lineWidth = widthVal;
+                    vsCtx.strokeStyle = color;
+                    vsCtx.stroke();
                 }
-                
-                // Return to center to close shape
-                vsCtx.lineTo(centerX, bottomY); 
-                vsCtx.closePath();
 
-                // Style: Fill with low opacity, Stroke with high opacity
-                vsCtx.fillStyle = 'rgba(0, 204, 255, 0.15)'; // Cyan Fill
-                vsCtx.fill();
-                vsCtx.lineWidth = 2;
-                vsCtx.strokeStyle = '#00ccff'; // Cyan Line
-                vsCtx.stroke();
-                
+                // Draw Max Window (Back Layer) - Color: White/Ghost
+                drawOutline(maxWindowBins, 'rgba(255, 255, 255, 0.4)', 1, null);
+
+                // Draw Decay (Front Layer) - Color: Cyan
+                drawOutline(decayBins, '#00ccff', 2, 'rgba(0, 204, 255, 0.15)');
+
                 vsAnimationId = requestAnimationFrame(drawVectorscope);
             }
 
@@ -275,11 +295,8 @@
                 const by = h-5;
                 const r = Math.min(w/2, h) * 0.95;
                 vsCtx.beginPath();
-                // 135 deg (Left Safe)
                 vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + Math.cos(2.356)*r, by - Math.sin(2.356)*r);
-                // 45 deg (Right Safe)
                 vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + Math.cos(0.785)*r, by - Math.sin(0.785)*r);
-                // Center (Mono)
                 vsCtx.moveTo(cx, by); vsCtx.lineTo(cx, by - r);
                 vsCtx.stroke();
             }
@@ -288,14 +305,11 @@
                 if(vsAnimationId) cancelAnimationFrame(vsAnimationId);
                 audioEl.pause(); 
                 audioEl.remove(); 
-
                 audioMotion.destroy();
-                envelopeBins.fill(0);
-
+                historyBins = [];
                 audioMotion = null; 
                 audioEl = null;
-
-                noticeDiv.style.display = ''; 
+                noticeDiv.style.display = 'flex'; 
                 destroyButton.style.display = 'none';
             }
         </script>
