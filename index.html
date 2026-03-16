@@ -196,8 +196,8 @@
                 analyserL = audioContext.createAnalyser();
                 analyserR = audioContext.createAnalyser();
                 
-                analyserL.fftSize = 4096; 
-                analyserR.fftSize = 4096;
+                analyserL.fftSize = 8192; 
+                analyserR.fftSize = 8192;
 
                 tapSource.connect(splitter);
                 splitter.connect(analyserL, 0);

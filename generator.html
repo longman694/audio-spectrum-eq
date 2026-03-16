@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html class="sl-theme-dark">
+    <head>
+        <title>Tone Generator + EQ</title>
+        <style>
+            body {
+                color: #EEEEEE;
+                background-color: #030303;
+                font-family: sans-serif;
+                margin: 0;
+                padding: 20px;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            #control-container {
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+                margin-top: 10px;
+                background-color: #111;
+                padding: 20px;
+                border-radius: 8px;
+                box-sizing: border-box;
+            }
+            .osc-group {
+                display: flex;
+                padding: 15px;
+                background-color: #1a1a1a;
+                border-radius: 6px;
+                border: 1px solid #333;
+            }
+            .volume-group {
+                width: 250px;
+                flex-shrink: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                padding-right: 30px; 
+                box-sizing: border-box;
+            }
+            .frequency-group {
+                flex-grow: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            .freq-label {
+                font-family: monospace;
+                color: #00ccff;
+                font-size: 1.1em;
+            }
+            .controls-row {
+                display: flex;
+                align-items: center;
+                gap: 20px;
+                flex-wrap: wrap;
+            }
+            .eq-container {
+                margin-top: 20px;
+                background-color: #111;
+                padding: 20px;
+                border-radius: 8px;
+            }
+            .eq-header {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                margin-bottom: 15px;
+            }
+            .eq-header h3 {
+                margin: 0;
+                color: #888;
+            }
+            
+            footer {
+                margin-top: 30px;
+                margin-bottom: 20px;
+                color: #666;
+                font-size: 0.9em;
+                text-align: center;
+            }
+            footer a {
+                color: #888;
+                text-decoration: none;
+                transition: color 0.2s;
+            }
+            footer a:hover {
+                color: #00ccff;
+            }
+        </style>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/themes/dark.css" />
+        <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/shoelace-autoloader.js"></script>
+    </head>
+    <body>
+        
+        <div id="control-container">
+            <div class="controls-row">
+                <sl-button variant="success" size="large" id="btn_start">
+                    <sl-icon slot="prefix" name="play-fill"></sl-icon> Start Generator
+                </sl-button>
+                <sl-button variant="danger" size="large" style="display: none;" id="btn_destroy">
+                    <sl-icon slot="prefix" name="stop-fill"></sl-icon> Stop Generator
+                </sl-button>
+                <sl-switch id="toggle_osc2">Enable Oscillator 2</sl-switch>
+            </div>
+
+            <div id="osc1-controls" class="osc-group">
+                <div class="volume-group">
+                    <label>Osc 1 Volume: <span id="label_vol1" class="freq-label">50%</span></label>
+                    <sl-range id="slider_vol1" min="0" max="100" value="50"></sl-range> 
+                </div>
+                <div class="frequency-group">
+                    <label>Osc 1 Frequency: <span id="label_osc1" class="freq-label">440.0 Hz</span></label>
+                    <sl-range id="slider_osc1" min="0" max="1000" value="439"></sl-range> 
+                </div>
+            </div>
+
+            <div id="osc2-controls" class="osc-group" style="display: none;">
+                <div class="volume-group">
+                    <label>Osc 2 Volume: <span id="label_vol2" class="freq-label">50%</span></label>
+                    <sl-range id="slider_vol2" min="0" max="100" value="50"></sl-range>
+                </div>
+                <div class="frequency-group">
+                    <label>Osc 2 Frequency: <span id="label_osc2" class="freq-label">1000.0 Hz</span></label>
+                    <sl-range id="slider_osc2" min="0" max="1000" value="565"></sl-range>
+                </div>
+            </div>
+        </div>
+
+        <div class="eq-container">
+            <div class="eq-header">
+                <h3>Equalizer</h3>
+            </div>
+            
+            <div id="eq-ui-container">
+                <weq8-ui></weq8-ui>
+            </div>
+        </div>
+
+        <footer>
+            <a href="https://github.com/longman694/audio-spectrum-eq" target="_blank">
+                <sl-icon name="github"></sl-icon> View on GitHub
+            </a>
+        </footer>
+
+        <script type="module">
+            import { WEQ8Runtime } from "https://cdn.skypack.dev/weq8";
+            import "https://cdn.skypack.dev/weq8/ui";
+    
+            // DOM Elements
+            const startButton   = document.getElementById('btn_start');
+            const destroyButton = document.getElementById('btn_destroy');
+            const toggleOsc2    = document.getElementById('toggle_osc2');
+            const eqUiContainer = document.getElementById('eq-ui-container');
+            const osc2Controls  = document.getElementById('osc2-controls');
+            const sliderOsc1    = document.getElementById('slider_osc1');
+            const sliderOsc2    = document.getElementById('slider_osc2');
+            const labelOsc1     = document.getElementById('label_osc1');
+            const labelOsc2     = document.getElementById('label_osc2');
+            const sliderVol1    = document.getElementById('slider_vol1');
+            const sliderVol2    = document.getElementById('slider_vol2');
+            const labelVol1     = document.getElementById('label_vol1');
+            const labelVol2     = document.getElementById('label_vol2');
+    
+            // Global Audio Variables
+            let audioContext, weq8;
+            let osc1, osc2;
+            let gain1, gain2;
+            let isPlaying = false;
+            let currentFilters = [];
+
+            const MIN_FREQ = 20;
+            const MAX_FREQ = 20000;
+
+            // --- IMMEDIATE INITIALIZATION ---
+            // Set up the environment immediately so WEQ8 is visible before clicking "Start"
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            currentFilters = generateDefaultBands();
+            weq8 = new WEQ8Runtime(audioContext);
+            weq8.filters = currentFilters;
+            document.querySelector("weq8-ui").runtime = weq8;
+            weq8.connect(audioContext.destination);
+
+            // Event Listeners
+            startButton.addEventListener('click', startGenerator);
+            destroyButton.addEventListener('click', stopGenerator);
+            toggleOsc2.addEventListener('sl-change', handleOsc2Toggle);
+            sliderOsc1.addEventListener('sl-input', () => updateFrequency(1));
+            sliderOsc2.addEventListener('sl-input', () => updateFrequency(2));
+            sliderVol1.addEventListener('sl-input', () => updateVolume(1));
+            sliderVol2.addEventListener('sl-input', () => updateVolume(2));
+
+            function generateDefaultBands() {
+                const defaultFreqs = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+                return defaultFreqs.map(freq => ({ type: 'pk12', frequency: freq, Q: 1, gain: 0 }));
+            }
+
+            function getLogFrequency(sliderValue) {
+                const x = sliderValue / 1000;
+                return MIN_FREQ * Math.pow(MAX_FREQ / MIN_FREQ, x);
+            }
+
+            function formatFrequency(freq) {
+                if (freq >= 1000) return (freq / 1000).toFixed(2) + " kHz";
+                return freq.toFixed(1) + " Hz";
+            }
+
+            function updateFrequency(oscNumber) {
+                // Always update the visual label
+                if (oscNumber === 1) {
+                    const freq = getLogFrequency(sliderOsc1.value);
+                    labelOsc1.innerText = formatFrequency(freq);
+                    // Only update the actual node if we are currently playing
+                    if (isPlaying && osc1) osc1.frequency.setTargetAtTime(freq, audioContext.currentTime, 0.05);
+                } else if (oscNumber === 2) {
+                    const freq = getLogFrequency(sliderOsc2.value);
+                    labelOsc2.innerText = formatFrequency(freq);
+                    if (isPlaying && osc2) osc2.frequency.setTargetAtTime(freq, audioContext.currentTime, 0.05);
+                }
+            }
+
+            function updateVolume(oscNumber) {
+                if (oscNumber === 1) {
+                    labelVol1.innerText = sliderVol1.value + "%";
+                    if (isPlaying && gain1) {
+                        const vol = (sliderVol1.value / 100) * 0.5; 
+                        gain1.gain.setTargetAtTime(vol, audioContext.currentTime, 0.05);
+                    }
+                } else if (oscNumber === 2) {
+                    labelVol2.innerText = sliderVol2.value + "%";
+                    if (isPlaying && gain2) {
+                        const vol = (sliderVol2.value / 100) * 0.5;
+                        gain2.gain.setTargetAtTime(vol, audioContext.currentTime, 0.05);
+                    }
+                }
+            }
+
+            function startOscillator2Logic() {
+                osc2 = audioContext.createOscillator();
+                gain2 = audioContext.createGain();
+                
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(getLogFrequency(sliderOsc2.value), audioContext.currentTime);
+                gain2.gain.setValueAtTime((sliderVol2.value / 100) * 0.5, audioContext.currentTime);
+                
+                osc2.connect(gain2);
+                gain2.connect(weq8.input);
+                osc2.start();
+            }
+
+            function handleOsc2Toggle() {
+                if (toggleOsc2.checked) {
+                    osc2Controls.style.display = 'flex';
+                    // If we toggle this on WHILE playing, start the sound immediately
+                    if (isPlaying) startOscillator2Logic();
+                } else {
+                    osc2Controls.style.display = 'none';
+                    // If we toggle this off WHILE playing, stop the sound immediately
+                    if (isPlaying && osc2) {
+                        osc2.stop();
+                        osc2.disconnect();
+                        gain2.disconnect();
+                        osc2 = null;
+                        gain2 = null;
+                    }
+                }
+            }
+            
+            async function startGenerator() {
+                if (isPlaying) return;
+                
+                // Browsers suspend audio context until user interaction. We resume it here.
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                isPlaying = true;
+
+                // Create and start Oscillator 1
+                osc1 = audioContext.createOscillator();
+                gain1 = audioContext.createGain();
+                
+                osc1.type = 'sine'; 
+                osc1.frequency.setValueAtTime(getLogFrequency(sliderOsc1.value), audioContext.currentTime);
+                gain1.gain.setValueAtTime((sliderVol1.value / 100) * 0.5, audioContext.currentTime);
+                
+                osc1.connect(gain1);
+                gain1.connect(weq8.input);
+                osc1.start();
+
+                // Start Oscillator 2 if the toggle is already checked
+                if (toggleOsc2.checked) {
+                    startOscillator2Logic();
+                }
+
+                startButton.style.display = 'none';
+                destroyButton.style.display = 'block';
+            }
+
+            function stopGenerator() {
+                if (!isPlaying) return;
+                isPlaying = false;
+
+                // Stop and clean up Oscillators, but leave the WEQ8 and AudioContext alive!
+                if (osc1) { osc1.stop(); osc1.disconnect(); osc1 = null; }
+                if (gain1) { gain1.disconnect(); gain1 = null; }
+                
+                if (osc2) { osc2.stop(); osc2.disconnect(); osc2 = null; }
+                if (gain2) { gain2.disconnect(); gain2 = null; }
+
+                startButton.style.display = 'block';
+                destroyButton.style.display = 'none';
+            }
+            
+            // Set initial labels on page load
+            updateFrequency(1);
+            updateFrequency(2);
+            updateVolume(1);
+            updateVolume(2);
+        </script>
+    </body>
+</html>
