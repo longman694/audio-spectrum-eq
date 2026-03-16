@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="sl-theme-dark">
     <head>
-        <title>Tone Generator + Native EQ</title>
+        <title>Tone Generator + Native EQ with Graph</title>
         <style>
             body {
                 color: #EEEEEE;
@@ -73,7 +73,22 @@
                 color: #888;
             }
             
-            /* Graphic EQ Styles */
+            /* Graphic EQ Canvas */
+            #eq-canvas-container {
+                width: 100%;
+                margin-bottom: 20px;
+                position: relative;
+            }
+            #eq-curve {
+                width: 100%;
+                height: 250px; /* Slightly taller to accommodate labels */
+                background-color: #1a1a1a;
+                border-radius: 6px;
+                border: 1px solid #333;
+                display: block;
+            }
+
+            /* Graphic EQ Sliders Styles */
             .eq-sliders {
                 display: flex;
                 justify-content: space-between;
@@ -89,7 +104,7 @@
                 flex-direction: column;
                 align-items: center;
                 gap: 8px;
-                width: 60px; /* Slightly wider for text boxes */
+                width: 60px;
             }
             .eq-slider-wrapper {
                 height: 160px;
@@ -98,7 +113,6 @@
                 justify-content: center;
                 margin: 10px 0;
             }
-            /* Cross-browser vertical slider */
             input[type=range].vertical-slider {
                 writing-mode: bt-lr; /* IE/Edge */
                 -webkit-appearance: slider-vertical; /* WebKit */
@@ -109,7 +123,6 @@
                 cursor: pointer;
             }
             
-            /* New input box styles */
             .input-group {
                 display: flex;
                 flex-direction: column;
@@ -140,7 +153,6 @@
             .eq-input:focus {
                 border-color: #00ccff;
             }
-            /* Hide number arrows for a cleaner look */
             .eq-input::-webkit-outer-spin-button,
             .eq-input::-webkit-inner-spin-button {
                 -webkit-appearance: none;
@@ -210,6 +222,10 @@
                 <h3>10-Band Graphic Equalizer</h3>
             </div>
             
+            <div id="eq-canvas-container">
+                <canvas id="eq-curve"></canvas>
+            </div>
+
             <div id="eq-ui-container">
                 <div class="eq-sliders" id="eq-sliders"></div>
             </div>
@@ -236,7 +252,11 @@
             const labelVol1     = document.getElementById('label_vol1');
             const labelVol2     = document.getElementById('label_vol2');
             const eqSliders     = document.getElementById('eq-sliders');
-    
+            
+            // Canvas Elements
+            const canvas = document.getElementById('eq-curve');
+            const ctx = canvas.getContext('2d');
+
             // Global Audio Variables
             let audioContext;
             let osc1, osc2;
@@ -254,19 +274,24 @@
             // --- IMMEDIATE INITIALIZATION ---
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
-            // 1. Create a master entry point for the EQ chain
+            // Force the context to initialize its sample rate for the math to work before playing
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    audioContext.suspend(); 
+                    drawEQCurve(); // Redraw once sample rate is guaranteed
+                });
+            }
+
             eqBus = audioContext.createGain();
 
-            // 2. Build the EQ filter chain and UI
+            // Build the EQ filter chain and UI
             EQ_FREQS.forEach((freq, index) => {
-                // Create native Biquad filter
                 const filter = audioContext.createBiquadFilter();
                 filter.type = 'peaking';
                 filter.frequency.value = freq;
-                filter.Q.value = 2; // Default Q
-                filter.gain.value = 0; // Default Gain
+                filter.Q.value = 2; 
+                filter.gain.value = 0; 
 
-                // Chain the nodes
                 if (index === 0) {
                     eqBus.connect(filter);
                 } else {
@@ -274,11 +299,10 @@
                 }
                 eqFilters.push(filter);
 
-                // --- Build the UI for this band ---
                 const bandDiv = document.createElement('div');
                 bandDiv.className = 'eq-band';
 
-                // GAIN INPUT GROUP
+                // GAIN
                 const gainGroup = document.createElement('div');
                 gainGroup.className = 'input-group';
                 const gainLabel = document.createElement('div');
@@ -292,20 +316,20 @@
                 gainGroup.appendChild(gainLabel);
                 gainGroup.appendChild(gainInput);
 
-                // GAIN SLIDER
+                // SLIDER
                 const sliderWrap = document.createElement('div');
                 sliderWrap.className = 'eq-slider-wrapper';
                 const slider = document.createElement('input');
                 slider.type = 'range';
                 slider.className = 'vertical-slider';
-                slider.min = -12;
-                slider.max = 12;
+                slider.min = -24;
+                slider.max = 24;
                 slider.step = 0.1;
                 slider.value = 0;
                 slider.setAttribute('orient', 'vertical');
                 sliderWrap.appendChild(slider);
 
-                // FREQUENCY INPUT GROUP
+                // FREQUENCY
                 const freqGroup = document.createElement('div');
                 freqGroup.className = 'input-group';
                 const freqLabel = document.createElement('div');
@@ -318,7 +342,7 @@
                 freqGroup.appendChild(freqLabel);
                 freqGroup.appendChild(freqInput);
 
-                // Q INPUT GROUP
+                // Q FACTOR
                 const qGroup = document.createElement('div');
                 qGroup.className = 'input-group';
                 const qLabel = document.createElement('div');
@@ -333,36 +357,37 @@
                 qGroup.appendChild(qInput);
 
                 // --- EVENT LISTENERS ---
-
-                // Sync Slider to AudioNode and Gain Text Box
+                // We removed the setTargetAtTime delay when stopped to ensure instant parameter updates
+                
                 slider.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
-                    filter.gain.setTargetAtTime(val, audioContext.currentTime, 0.05);
+                    filter.gain.value = val; 
                     gainInput.value = val.toFixed(1);
+                    drawEQCurve();
                 });
 
-                // Sync Gain Text Box to AudioNode and Slider
                 gainInput.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
                     if(!isNaN(val)) {
-                        filter.gain.setTargetAtTime(val, audioContext.currentTime, 0.05);
+                        filter.gain.value = val;
                         slider.value = val;
+                        drawEQCurve();
                     }
                 });
 
-                // Update Frequency
                 freqInput.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
                     if(!isNaN(val) && val > 0) {
-                        filter.frequency.setTargetAtTime(val, audioContext.currentTime, 0.05);
+                        filter.frequency.value = val;
+                        drawEQCurve();
                     }
                 });
 
-                // Update Q Factor
                 qInput.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
                     if(!isNaN(val) && val >= 0) {
-                        filter.Q.setTargetAtTime(val, audioContext.currentTime, 0.05);
+                        filter.Q.value = val;
+                        drawEQCurve();
                     }
                 });
 
@@ -373,8 +398,125 @@
                 eqSliders.appendChild(bandDiv);
             });
 
-            // 3. Connect the very last filter to the audio destination
             eqFilters[eqFilters.length - 1].connect(audioContext.destination);
+
+            // --- RESPONSIVE GRAPH LOGIC & DRAWING ---
+            
+            function resizeCanvas() {
+                canvas.width = canvas.clientWidth;
+                canvas.height = canvas.clientHeight;
+                drawEQCurve();
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+
+            function drawEQCurve() {
+                const width = canvas.width;
+                const height = canvas.height;
+                ctx.clearRect(0, 0, width, height);
+
+                const PAD_LEFT = 45;
+                const PAD_RIGHT = 15;
+                const PAD_TOP = 15;
+                const PAD_BOTTOM = 25;
+
+                const plotWidth = width - PAD_LEFT - PAD_RIGHT;
+                const plotHeight = height - PAD_TOP - PAD_BOTTOM;
+
+                if (plotWidth <= 0 || plotHeight <= 0) return;
+
+                const maxDb = 24; 
+                const minDb = -24;
+
+                // 1. Draw Y-axis
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+
+                const yLabels = [24, 12, 0, -12, -24];
+                yLabels.forEach(db => {
+                    const y = PAD_TOP + plotHeight - ((db - minDb) / (maxDb - minDb)) * plotHeight;
+                    ctx.fillStyle = db === 0 ? '#00ccff' : '#888';
+                    ctx.fillText((db > 0 ? '+' : '') + db + ' dB', PAD_LEFT - 5, y);
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = db === 0 ? '#555' : '#222';
+                    ctx.lineWidth = 1;
+                    ctx.moveTo(PAD_LEFT, y);
+                    ctx.lineTo(PAD_LEFT + plotWidth, y);
+                    ctx.stroke();
+                });
+
+                // 2. Draw X-axis
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillStyle = '#888';
+
+                EQ_FREQS.forEach(freq => {
+                    const logRatio = Math.log(freq / MIN_FREQ) / Math.log(MAX_FREQ / MIN_FREQ);
+                    const x = PAD_LEFT + plotWidth * logRatio;
+                    const labelText = freq >= 1000 ? (freq / 1000) + 'k' : freq;
+                    ctx.fillText(labelText, x, PAD_TOP + plotHeight + 5);
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = '#222';
+                    ctx.lineWidth = 1;
+                    ctx.moveTo(x, PAD_TOP);
+                    ctx.lineTo(x, PAD_TOP + plotHeight);
+                    ctx.stroke();
+                });
+
+                // 3. Draw Curve
+                const numPoints = Math.floor(plotWidth);
+                const freqs = new Float32Array(numPoints);
+                const totalMag = new Float32Array(numPoints);
+                totalMag.fill(1.0);
+
+                for (let i = 0; i < numPoints; i++) {
+                    const ratio = i / (numPoints - 1);
+                    freqs[i] = MIN_FREQ * Math.pow(MAX_FREQ / MIN_FREQ, ratio);
+                }
+
+                // Catch if audioContext isn't fully ready yet (prevents crash before resume)
+                try {
+                    eqFilters.forEach(filter => {
+                        const magResponse = new Float32Array(numPoints);
+                        const phaseResponse = new Float32Array(numPoints);
+                        filter.getFrequencyResponse(freqs, magResponse, phaseResponse);
+                        for (let i = 0; i < numPoints; i++) {
+                            totalMag[i] *= magResponse[i];
+                        }
+                    });
+                } catch(e) {
+                    // AudioContext not ready, silently fail and draw flat line
+                }
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#00ccff';
+                ctx.lineWidth = 2;
+
+                for (let i = 0; i < numPoints; i++) {
+                    let db = 20 * Math.log10(totalMag[i]);
+                    // Handle infinity/NaN cases from uninitialized audioContext
+                    if (!isFinite(db)) db = 0; 
+                    db = Math.max(minDb, Math.min(maxDb, db));
+
+                    const x = PAD_LEFT + i;
+                    const y = PAD_TOP + plotHeight - ((db - minDb) / (maxDb - minDb)) * plotHeight;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                
+                ctx.lineTo(PAD_LEFT + plotWidth, PAD_TOP + plotHeight);
+                ctx.lineTo(PAD_LEFT, PAD_TOP + plotHeight);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(0, 204, 255, 0.15)';
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            resizeCanvas();
 
             // Generator Event Listeners
             startButton.addEventListener('click', startGenerator);
