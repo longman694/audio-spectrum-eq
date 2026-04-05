@@ -1,387 +1,420 @@
 <!DOCTYPE html>
 <html class="sl-theme-dark">
-    <head>
-        <title>Spectral Analysis + EQ + Phase Vectorscope</title>
-        <style>
-            body {
-                color: #EEEEEE;
-                background-color: #030303;
-                font-family: sans-serif;
-            }
-            #control-container {
-                width: 100%;
-                display: flex;
-                align-items: center;
-                margin-top: 10px;
-            }
-            #audio-container {
-                flex-grow: 1;
-                margin-right: 0.2em;
-            }
-            #audio-container audio {
-                width: 100%;
-            }
-            #container {
-                background-color: #111111;
-                margin-left: 255px;
-                margin-right: 20px;
-                height: 400px;
-                position: relative;
-                border-radius: 8px;
-                overflow: hidden;
-            }
-            #vectorscope-container {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                margin-top: 20px;
-                margin-bottom: 20px;
-            }
-            canvas#vectorscope {
-                background-color: #000;
-                border: 1px solid #333;
-                border-radius: 400px 400px 0 0; /* Semi-circle */
-                box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
-                /* Size */
-                width: 800px; 
-                height: 400px;
-            }
-            .center { text-align: center; }
-            
-            /* Footer Styles */
-            footer {
-                margin-top: 30px;
-                margin-bottom: 20px;
-                color: #666;
-                font-size: 0.9em;
-                text-align: center;
-            }
-            footer a {
-                color: #888;
-                text-decoration: none;
-                transition: color 0.2s;
-            }
-            footer a:hover {
-                color: #00ccff;
-            }
-        </style>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/themes/dark.css" />
-        <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/shoelace-autoloader.js"></script>
-    </head>
-    <body>
-        <div id="container">
-            <div id="notice" style="padding: 20px;">
-                <label for="btn_start">Select audio a file</label> <input id="btn_start" type="file" />
+
+<head>
+    <title>Spectral Analysis + EQ + Phase Vectorscope</title>
+    <style>
+        body {
+            color: #EEEEEE;
+            background-color: #030303;
+            font-family: sans-serif;
+        }
+
+        #control-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        #audio-container {
+            flex-grow: 1;
+            margin-right: 0.2em;
+        }
+
+        #audio-container audio {
+            width: 100%;
+        }
+
+        #container {
+            background-color: #111111;
+            margin-left: 255px;
+            margin-right: 20px;
+            height: 400px;
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #vectorscope-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        canvas#vectorscope {
+            background-color: #000;
+            border: 1px solid #333;
+            border-radius: 400px 400px 0 0;
+            /* Semi-circle */
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+            /* Size */
+            width: 800px;
+            height: 400px;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        /* Footer Styles */
+        footer {
+            margin-top: 30px;
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        footer a {
+            color: #888;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        footer a:hover {
+            color: #00ccff;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/themes/dark.css" />
+    <script type="module"
+        src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/shoelace-autoloader.js"></script>
+</head>
+
+<body>
+    <!-- Floating Navigation -->
+    <sl-dropdown placement="bottom-start" style="position: fixed; top: 20px; left: 20px; z-index: 1000;">
+        <sl-button slot="trigger" circle size="large">
+            <sl-icon name="list"></sl-icon>
+        </sl-button>
+        <sl-menu>
+            <sl-menu-item onclick="window.location.href='index.html'">
+                <sl-icon slot="prefix" name="activity"></sl-icon>
+                Analyzer & Vectorscope
+            </sl-menu-item>
+            <sl-menu-item onclick="window.location.href='generator.html'">
+                <sl-icon slot="prefix" name="sliders"></sl-icon>
+                Tone Generator
+            </sl-menu-item>
+        </sl-menu>
+    </sl-dropdown>
+
+    <div id="container">
+        <div id="notice" style="padding: 20px;">
+            <label for="btn_start">Select audio a file</label> <input id="btn_start" type="file" />
+        </div>
+    </div>
+    <div id="control-container">
+        <div id="audio-container"></div>
+        <sl-button variant="default" size="large" style="display: none;" id="btn_destroy" circle>
+            <sl-icon name="x-lg" label="Settings"></sl-icon>
+        </sl-button>
+    </div>
+    <div id="message" class="box center"></div>
+
+    <sl-tab-group>
+        <sl-tab slot="nav" panel="eq">EQ</sl-tab>
+        <sl-tab slot="nav" panel="Phase">Vectorscope</sl-tab>
+
+        <sl-tab-panel name="eq">
+            <div style="margin-top: 10px;">
+                <weq8-ui />
             </div>
-        </div>
-        <div id="control-container">
-            <div id="audio-container"></div>
-            <sl-button variant="default" size="large" style="display: none;" id="btn_destroy" circle>
-                <sl-icon name="x-lg" label="Settings"></sl-icon>
-            </sl-button>
-        </div>
-        <div id="message" class="box center"></div>
+        </sl-tab-panel>
 
-        <sl-tab-group>
-            <sl-tab slot="nav" panel="eq">EQ</sl-tab>
-            <sl-tab slot="nav" panel="Phase">Vectorscope</sl-tab>
+        <sl-tab-panel name="Phase">
+            <div id="vectorscope-container" style="position: relative; width: 800px; margin: 20px auto;">
+                <h3 style="margin: 0 0 10px 0; color: #888; text-align: center;">Phase Vectorscope</h3>
+                <canvas id="vectorscope" width="700" height="350"></canvas>
+            </div>
+        </sl-tab-panel>
+    </sl-tab-group>
 
-            <sl-tab-panel name="eq">
-                <div style="margin-top: 10px;">
-                    <weq8-ui />
-                </div>
-            </sl-tab-panel>
+    <footer>
+        <a href="https://github.com/longman694/audio-spectrum-eq" target="_blank">
+            <sl-icon name="github"></sl-icon> View on GitHub
+        </a>
+    </footer>
+    <!-- <div class="center">more <a href="https://audiomotion.dev/#/" target="_blank">settings</a></div> -->
 
-            <sl-tab-panel name="Phase">
-                <div id="vectorscope-container" style="position: relative; width: 800px; margin: 20px auto;">
-                    <h3 style="margin: 0 0 10px 0; color: #888; text-align: center;">Phase Vectorscope</h3>
-                    <canvas id="vectorscope" width="700" height="350"></canvas>
-                </div>
-            </sl-tab-panel>
-        </sl-tab-group>
+    <script type="module">
+        import AudioMotionAnalyzer from 'https://cdn.jsdelivr.net/npm/audiomotion-analyzer@4/+esm';
+        import { WEQ8Runtime } from "https://cdn.skypack.dev/weq8";
+        import "https://cdn.skypack.dev/weq8/ui";
 
-        <footer>
-            <a href="https://github.com/longman694/audio-spectrum-eq" target="_blank">
-                <sl-icon name="github"></sl-icon> View on GitHub
-            </a>
-        </footer>
-        <!-- <div class="center">more <a href="https://audiomotion.dev/#/" target="_blank">settings</a></div> -->
+        const container = document.getElementById('container'),
+            audioContainer = document.getElementById('audio-container'),
+            destroyButton = document.getElementById('btn_destroy'),
+            startButton = document.getElementById('btn_start'),
+            messageDiv = document.getElementById('message'),
+            noticeDiv = document.getElementById('notice'),
+            canvasVS = document.getElementById('vectorscope');
 
-        <script type="module">
-            import AudioMotionAnalyzer from 'https://cdn.skypack.dev/audiomotion-analyzer?min';
-            import { WEQ8Runtime } from "https://cdn.skypack.dev/weq8";
-            import "https://cdn.skypack.dev/weq8/ui";
-    
-            const container       = document.getElementById('container'),
-                  audioContainer = document.getElementById('audio-container'),
-                  destroyButton  = document.getElementById('btn_destroy'),
-                  startButton    = document.getElementById('btn_start'),
-                  messageDiv      = document.getElementById('message'),
-                  noticeDiv       = document.getElementById('notice'),
-                  canvasVS        = document.getElementById('vectorscope');
-    
-            destroyButton.addEventListener( 'click', destroy );
-            startButton.addEventListener( 'change', initialize );
-    
-            let audioEl, audioMotion, source, weq8;
-            let audioContext;
-            
-            // --- VECTORSCOPE VARIABLES ---
-            let vsCtx, vsAnimationId;
-            let tapSource = null;
-            let splitter, analyserL, analyserR;
+        destroyButton.addEventListener('click', destroy);
+        startButton.addEventListener('change', initialize);
 
-            const numAngleBins = 180; 
-            
-            // Layer 1: The Decay Envelope (Cyan)
-            let decayBins = new Float32Array(numAngleBins).fill(0);
-            const envelopeDecay = 0.92; 
-            
-            // Layer 2: The History Peak (White)
-            const historyLimit = 120; // 2 seconds
-            let historyBins = []; 
+        let audioEl, audioMotion, source, weq8;
+        let audioContext;
 
-            function initialize() {
-                vsCtx = canvasVS.getContext('2d');
+        // --- VECTORSCOPE VARIABLES ---
+        let vsCtx, vsAnimationId;
+        let tapSource = null;
+        let splitter, analyserL, analyserR;
 
-                var file = this.files[0]
-                var blob = window.URL || window.webkitURL;
-                if (!blob) { console.log('No Blob URL support'); return; }
-                var fileURL = blob.createObjectURL(file);
+        const numAngleBins = 180;
 
-                audioEl = new Audio(fileURL);
-                audioEl.controls = true;
-                audioEl.crossOrigin = 'anonymous';
-                audioEl.onloadstart  = () => messageDiv.innerText = 'Buffering...';
-                audioEl.onloadeddata = () => {
-                    messageDiv.innerText = '';
-                    audioEl.play();
-                    drawVectorscope(); 
-                }
-                
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                source = audioContext.createMediaElementSource(audioEl);
-                weq8 = new WEQ8Runtime(audioContext);
-                
-                audioMotion = new AudioMotionAnalyzer( container, {
-                    audioCtx: audioContext, 
-                    connectSpeakers: false, 
-                    frequencyScale: 'log',
-                    minFreq: 10, 
-                    maxFreq: 24000, 
-                    gradient: 'prism', 
-                    mode: 0,
-                    ansiBands: true,
-                    fftSize: 8192,
-                    smoothing: 0.5, 
-                    channelLayout: 'dual-vertical',
-                    alphaBars: true,
-                });
+        // Layer 1: The Decay Envelope (Cyan)
+        let decayBins = new Float32Array(numAngleBins).fill(0);
+        const envelopeDecay = 0.92;
 
-                // --- ROUTING ---
-                source.connect(weq8.input);
-                audioMotion.connectInput(weq8);
-                audioMotion.connectOutput(audioContext.destination);
+        // Layer 2: The History Peak (White)
+        const historyLimit = 120; // 2 seconds
+        let historyBins = [];
 
-                // Tap signal for Vectorscope
-                if (audioMotion.analyzer) {
-                     tapSource = audioMotion.analyzer;
-                } else {
-                     tapSource = weq8;
-                }
-                
-                // --- PHASE ANALYSIS SETUP ---
-                // Using ChannelSplitter to get raw Time Domain data
-                splitter = audioContext.createChannelSplitter(2);
-                analyserL = audioContext.createAnalyser();
-                analyserR = audioContext.createAnalyser();
-                
-                analyserL.fftSize = 8192; 
-                analyserR.fftSize = 8192;
+        function initialize() {
+            vsCtx = canvasVS.getContext('2d');
 
-                tapSource.connect(splitter);
-                splitter.connect(analyserL, 0);
-                splitter.connect(analyserR, 1);
+            var file = this.files[0]
+            var blob = window.URL || window.webkitURL;
+            if (!blob) { console.log('No Blob URL support'); return; }
+            var fileURL = blob.createObjectURL(file);
 
-                document.querySelector("weq8-ui").runtime = weq8;
-                audioContainer.append( audioEl );
-                noticeDiv.style.display = 'none';
-                destroyButton.style.display = 'block';
+            audioEl = new Audio(fileURL);
+            audioEl.controls = true;
+            audioEl.crossOrigin = 'anonymous';
+            audioEl.onloadstart = () => messageDiv.innerText = 'Buffering...';
+            audioEl.onloadeddata = () => {
+                messageDiv.innerText = '';
+                audioEl.play();
+                drawVectorscope();
             }
 
-            // --- DRAWING LOGIC ---
-            function drawVectorscope() {
-                if(!analyserL || !analyserR || !vsCtx) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            source = audioContext.createMediaElementSource(audioEl);
+            weq8 = new WEQ8Runtime(audioContext);
 
-                const width = canvasVS.width;
-                const height = canvasVS.height;
-                const bufferLength = analyserL.frequencyBinCount;
-                
-                const dataL = new Uint8Array(bufferLength);
-                const dataR = new Uint8Array(bufferLength);
-                
-                // Get Time Domain Data (Waveform)
-                analyserL.getByteTimeDomainData(dataL);
-                analyserR.getByteTimeDomainData(dataR);
+            audioMotion = new AudioMotionAnalyzer(container, {
+                audioCtx: audioContext,
+                connectSpeakers: false,
+                frequencyScale: 'log',
+                minFreq: 10,
+                maxFreq: 24000,
+                gradient: 'prism',
+                mode: 0,
+                ansiBands: true,
+                fftSize: 8192,
+                smoothing: 0.5,
+                channelLayout: 'dual-vertical',
+                alphaBars: true,
+            });
 
-                let compositeFrameBins = new Float32Array(numAngleBins).fill(0);
+            // --- ROUTING ---
+            source.connect(weq8.input);
+            audioMotion.connectInput(weq8);
+            audioMotion.connectOutput(audioContext.destination);
 
-                // Analyze waveform (Raw Phase Analysis)
-                for (let i = 0; i < bufferLength; i+=4) { 
-                    const L = (dataL[i] / 128.0) - 1.0;
-                    const R = (dataR[i] / 128.0) - 1.0;
-                    
-                    let x = (R - L);
-                    let y = (L + R);
-
-                    const currentMag = Math.sqrt(x*x + y*y) * 0.707; 
-
-                    if (currentMag < 0.01) continue;
-
-                    if (y < 0) { x = -x; y = -y; } // Upper hemisphere mapping
-
-                    const angle = Math.atan2(y, x); 
-
-                    let binIndex = Math.floor((angle / Math.PI) * (numAngleBins - 1));
-                    binIndex = (numAngleBins - 1) - binIndex;
-                    binIndex = Math.max(0, Math.min(numAngleBins-1, binIndex));
-
-                    if (currentMag > compositeFrameBins[binIndex]) {
-                         compositeFrameBins[binIndex] = currentMag;
-                    }
-                }
-
-                // Update Decay
-                for (let i = 0; i < numAngleBins; i++) {
-                    decayBins[i] *= envelopeDecay; 
-                    if (compositeFrameBins[i] > decayBins[i]) {
-                        decayBins[i] = compositeFrameBins[i]; 
-                    }
-                }
-
-                // Update History
-                historyBins.push(compositeFrameBins); 
-                if (historyBins.length > historyLimit) {
-                    historyBins.shift(); 
-                }
-                
-                let maxWindowBins = new Float32Array(numAngleBins).fill(0);
-                for (let h = 0; h < historyBins.length; h++) {
-                    const frame = historyBins[h];
-                    for (let b = 0; b < numAngleBins; b++) {
-                        if (frame[b] > maxWindowBins[b]) {
-                            maxWindowBins[b] = frame[b];
-                        }
-                    }
-                }
-
-                // Draw
-                vsCtx.clearRect(0,0, width, height);
-                vsCtx.fillStyle = '#050505';
-                vsCtx.fillRect(0,0,width,height);
-
-                drawGuideLines(width, height);
-
-                function drawOutline(bins, color, widthVal, fillStyle) {
-                    const centerX = width / 2;
-                    const bottomY = height - 5; 
-                    const maxRadius = Math.min(width / 2, height) * 0.95;
-
-                    vsCtx.beginPath();
-                    
-                    for (let i = 0; i < numAngleBins; i++) {
-                        let magnitude = Math.pow(bins[i], 0.8);
-                        const baseRadius = 5; 
-                        const finalRadius = baseRadius + (magnitude * (maxRadius - baseRadius));
-                        
-                        const percent = i / (numAngleBins - 1);
-                        const angleRad = Math.PI - (percent * Math.PI); 
-
-                        const drawX = centerX + (Math.cos(angleRad) * finalRadius);
-                        const drawY = bottomY - (Math.sin(angleRad) * finalRadius);
-                        
-                        if (i===0) vsCtx.moveTo(drawX, drawY);
-                        else vsCtx.lineTo(drawX, drawY);
-                    }
-                    
-                    vsCtx.lineTo(centerX, bottomY); 
-                    vsCtx.closePath();
-
-                    if(fillStyle) {
-                        vsCtx.fillStyle = fillStyle;
-                        vsCtx.fill();
-                    }
-                    vsCtx.lineWidth = widthVal;
-                    vsCtx.strokeStyle = color;
-                    vsCtx.stroke();
-                }
-
-                drawOutline(maxWindowBins, 'rgba(255, 255, 255, 0.4)', 1, null);
-                drawOutline(decayBins, '#00ccff', 2, 'rgba(0, 204, 255, 0.15)');
-
-                vsAnimationId = requestAnimationFrame(drawVectorscope);
+            // Tap signal for Vectorscope
+            if (audioMotion.analyzer) {
+                tapSource = audioMotion.analyzer;
+            } else {
+                tapSource = weq8;
             }
 
-            function drawGuideLines(w, h) {
-                vsCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-                vsCtx.lineWidth = 1;
-                const cx = w/2;
-                const by = h+8;
-                const r = Math.min(w/2, h) * 0.95;
-                
-                // Draw Lines
+            // --- PHASE ANALYSIS SETUP ---
+            // Using ChannelSplitter to get raw Time Domain data
+            splitter = audioContext.createChannelSplitter(2);
+            analyserL = audioContext.createAnalyser();
+            analyserR = audioContext.createAnalyser();
+
+            analyserL.fftSize = 8192;
+            analyserR.fftSize = 8192;
+
+            tapSource.connect(splitter);
+            splitter.connect(analyserL, 0);
+            splitter.connect(analyserR, 1);
+
+            document.querySelector("weq8-ui").runtime = weq8;
+            audioContainer.append(audioEl);
+            noticeDiv.style.display = 'none';
+            destroyButton.style.display = 'block';
+        }
+
+        // --- DRAWING LOGIC ---
+        function drawVectorscope() {
+            if (!analyserL || !analyserR || !vsCtx) return;
+
+            const width = canvasVS.width;
+            const height = canvasVS.height;
+            const bufferLength = analyserL.frequencyBinCount;
+
+            const dataL = new Uint8Array(bufferLength);
+            const dataR = new Uint8Array(bufferLength);
+
+            // Get Time Domain Data (Waveform)
+            analyserL.getByteTimeDomainData(dataL);
+            analyserR.getByteTimeDomainData(dataR);
+
+            let compositeFrameBins = new Float32Array(numAngleBins).fill(0);
+
+            // Analyze waveform (Raw Phase Analysis)
+            for (let i = 0; i < bufferLength; i += 4) {
+                const L = (dataL[i] / 128.0) - 1.0;
+                const R = (dataR[i] / 128.0) - 1.0;
+
+                let x = (R - L);
+                let y = (L + R);
+
+                const currentMag = Math.sqrt(x * x + y * y) * 0.707;
+
+                if (currentMag < 0.01) continue;
+
+                if (y < 0) { x = -x; y = -y; } // Upper hemisphere mapping
+
+                const angle = Math.atan2(y, x);
+
+                let binIndex = Math.floor((angle / Math.PI) * (numAngleBins - 1));
+                binIndex = (numAngleBins - 1) - binIndex;
+                binIndex = Math.max(0, Math.min(numAngleBins - 1, binIndex));
+
+                if (currentMag > compositeFrameBins[binIndex]) {
+                    compositeFrameBins[binIndex] = currentMag;
+                }
+            }
+
+            // Update Decay
+            for (let i = 0; i < numAngleBins; i++) {
+                decayBins[i] *= envelopeDecay;
+                if (compositeFrameBins[i] > decayBins[i]) {
+                    decayBins[i] = compositeFrameBins[i];
+                }
+            }
+
+            // Update History
+            historyBins.push(compositeFrameBins);
+            if (historyBins.length > historyLimit) {
+                historyBins.shift();
+            }
+
+            let maxWindowBins = new Float32Array(numAngleBins).fill(0);
+            for (let h = 0; h < historyBins.length; h++) {
+                const frame = historyBins[h];
+                for (let b = 0; b < numAngleBins; b++) {
+                    if (frame[b] > maxWindowBins[b]) {
+                        maxWindowBins[b] = frame[b];
+                    }
+                }
+            }
+
+            // Draw
+            vsCtx.clearRect(0, 0, width, height);
+            vsCtx.fillStyle = '#050505';
+            vsCtx.fillRect(0, 0, width, height);
+
+            drawGuideLines(width, height);
+
+            function drawOutline(bins, color, widthVal, fillStyle) {
+                const centerX = width / 2;
+                const bottomY = height - 5;
+                const maxRadius = Math.min(width / 2, height) * 0.95;
+
                 vsCtx.beginPath();
-                // 135 deg (Left)
-                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + Math.cos(2.356)*r, by - Math.sin(2.356)*r);
-                // 45 deg (Right)
-                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + Math.cos(0.785)*r, by - Math.sin(0.785)*r);
-                // Center (Mono)
-                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx, by - r);
-                // Flat Lines (Anti-phase)
-                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx - r, by); 
-                vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + r, by); 
+
+                for (let i = 0; i < numAngleBins; i++) {
+                    let magnitude = Math.pow(bins[i], 0.8);
+                    const baseRadius = 5;
+                    const finalRadius = baseRadius + (magnitude * (maxRadius - baseRadius));
+
+                    const percent = i / (numAngleBins - 1);
+                    const angleRad = Math.PI - (percent * Math.PI);
+
+                    const drawX = centerX + (Math.cos(angleRad) * finalRadius);
+                    const drawY = bottomY - (Math.sin(angleRad) * finalRadius);
+
+                    if (i === 0) vsCtx.moveTo(drawX, drawY);
+                    else vsCtx.lineTo(drawX, drawY);
+                }
+
+                vsCtx.lineTo(centerX, bottomY);
+                vsCtx.closePath();
+
+                if (fillStyle) {
+                    vsCtx.fillStyle = fillStyle;
+                    vsCtx.fill();
+                }
+                vsCtx.lineWidth = widthVal;
+                vsCtx.strokeStyle = color;
                 vsCtx.stroke();
-
-                // Draw Labels
-                vsCtx.fillStyle = "#888"; // Gray text
-                vsCtx.font = "12px sans-serif";
-                
-                const textR = r + 15; // Push text slightly out from line tip
-
-                // Top Center (Mono)
-                vsCtx.textAlign = "center";
-                vsCtx.fillText("Mono", cx, by - textR);
-
-                // Left (135 deg)
-                const lx = cx + Math.cos(2.356) * textR;
-                const ly = by - Math.sin(2.356) * textR;
-                vsCtx.textAlign = "right";
-                vsCtx.fillText("L", lx, ly);
-
-                // Right (45 deg)
-                const rx = cx + Math.cos(0.785) * textR;
-                const ry = by - Math.sin(0.785) * textR;
-                vsCtx.textAlign = "left";
-                vsCtx.fillText("R", rx, ry);
-
-                // Bottom Corners (Invert)
-                vsCtx.textAlign = "left";
-                vsCtx.fillText("-1", cx - textR, by - 11);
-                vsCtx.textAlign = "right";
-                vsCtx.fillText("-1", cx + textR, by - 11);
             }
-    
-            function destroy() {
-                if(vsAnimationId) cancelAnimationFrame(vsAnimationId);
-                audioEl.pause(); 
-                audioEl.remove(); 
-                audioMotion.destroy();
-                historyBins = [];
-                audioMotion = null; 
-                audioEl = null;
-                noticeDiv.style.display = ''; 
-                destroyButton.style.display = 'none';
-            }
-        </script>
-    </body>
+
+            drawOutline(maxWindowBins, 'rgba(255, 255, 255, 0.4)', 1, null);
+            drawOutline(decayBins, '#00ccff', 2, 'rgba(0, 204, 255, 0.15)');
+
+            vsAnimationId = requestAnimationFrame(drawVectorscope);
+        }
+
+        function drawGuideLines(w, h) {
+            vsCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            vsCtx.lineWidth = 1;
+            const cx = w / 2;
+            const by = h + 8;
+            const r = Math.min(w / 2, h) * 0.95;
+
+            // Draw Lines
+            vsCtx.beginPath();
+            // 135 deg (Left)
+            vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + Math.cos(2.356) * r, by - Math.sin(2.356) * r);
+            // 45 deg (Right)
+            vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + Math.cos(0.785) * r, by - Math.sin(0.785) * r);
+            // Center (Mono)
+            vsCtx.moveTo(cx, by); vsCtx.lineTo(cx, by - r);
+            // Flat Lines (Anti-phase)
+            vsCtx.moveTo(cx, by); vsCtx.lineTo(cx - r, by);
+            vsCtx.moveTo(cx, by); vsCtx.lineTo(cx + r, by);
+            vsCtx.stroke();
+
+            // Draw Labels
+            vsCtx.fillStyle = "#888"; // Gray text
+            vsCtx.font = "12px sans-serif";
+
+            const textR = r + 15; // Push text slightly out from line tip
+
+            // Top Center (Mono)
+            vsCtx.textAlign = "center";
+            vsCtx.fillText("Mono", cx, by - textR);
+
+            // Left (135 deg)
+            const lx = cx + Math.cos(2.356) * textR;
+            const ly = by - Math.sin(2.356) * textR;
+            vsCtx.textAlign = "right";
+            vsCtx.fillText("L", lx, ly);
+
+            // Right (45 deg)
+            const rx = cx + Math.cos(0.785) * textR;
+            const ry = by - Math.sin(0.785) * textR;
+            vsCtx.textAlign = "left";
+            vsCtx.fillText("R", rx, ry);
+
+            // Bottom Corners (Invert)
+            vsCtx.textAlign = "left";
+            vsCtx.fillText("-1", cx - textR, by - 11);
+            vsCtx.textAlign = "right";
+            vsCtx.fillText("-1", cx + textR, by - 11);
+        }
+
+        function destroy() {
+            if (vsAnimationId) cancelAnimationFrame(vsAnimationId);
+            audioEl.pause();
+            audioEl.remove();
+            audioMotion.destroy();
+            historyBins = [];
+            audioMotion = null;
+            audioEl = null;
+            noticeDiv.style.display = '';
+            destroyButton.style.display = 'none';
+        }
+    </script>
+</body>
+
 </html>
