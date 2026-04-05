@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html class="sl-theme-dark">
+
+<head>
+    <title>Ear Training</title>
+    <style>
+        body {
+            color: #EEEEEE;
+            background-color: #030303;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #settings-container,
+        #control-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-top: 10px;
+            background-color: #111;
+            padding: 20px;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        .controls-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            padding: 10px;
+            background-color: #1a1a1a;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+
+        .settings-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .settings-label {
+            font-size: 0.85em;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .input-inline {
+            width: 110px;
+        }
+
+        .eq-container {
+            margin-top: 20px;
+            background-color: #111;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .eq-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .eq-header h3 {
+            margin: 0;
+            color: #888;
+        }
+
+        /* Graphic EQ Canvas */
+        #eq-canvas-container {
+            width: 100%;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        #eq-curve {
+            width: 100%;
+            height: 250px;
+            background-color: #1a1a1a;
+            border-radius: 6px;
+            border: 1px solid #333;
+            display: block;
+        }
+
+        #score-display {
+            font-size: 1.5em;
+            color: #00ff00;
+            font-family: monospace;
+            display: none;
+        }
+
+        #result-text {
+            color: #ccc;
+            font-size: 1.1em;
+            margin-top: 5px;
+        }
+
+        /* Graphic EQ Sliders Styles */
+        .eq-sliders {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            overflow-x: auto;
+        }
+
+        .eq-band {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            width: 60px;
+        }
+
+        .eq-slider-wrapper {
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px 0;
+        }
+
+        input[type=range].vertical-slider {
+            writing-mode: vertical-lr;
+            direction: rtl;
+            width: 8px;
+            height: 150px;
+            padding: 0 5px;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .eq-param-label {
+            font-size: 0.7em;
+            color: #888;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .eq-input {
+            width: 100%;
+            background: #222;
+            color: #00ccff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 4px;
+            text-align: center;
+            font-size: 0.85em;
+            font-family: monospace;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .eq-input:focus {
+            border-color: #00ccff;
+        }
+
+        .eq-input::-webkit-outer-spin-button,
+        .eq-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .eq-input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        footer {
+            margin-top: 30px;
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        footer a {
+            color: #888;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        footer a:hover {
+            color: #00ccff;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/themes/dark.css" />
+    <script type="module"
+        src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.15.0/cdn/shoelace-autoloader.js"></script>
+</head>
+
+<body>
+    <!-- Floating Navigation -->
+    <sl-dropdown placement="bottom-start" style="position: fixed; top: 20px; left: 20px; z-index: 1000;">
+        <sl-button slot="trigger" circle size="large">
+            <sl-icon name="list"></sl-icon>
+        </sl-button>
+        <sl-menu>
+            <sl-menu-item onclick="window.location.href='index.html'">
+                <sl-icon slot="prefix" name="activity"></sl-icon>
+                Analyzer & Vectorscope
+            </sl-menu-item>
+            <sl-menu-item onclick="window.location.href='generator.html'">
+                <sl-icon slot="prefix" name="sliders"></sl-icon>
+                Tone Generator
+            </sl-menu-item>
+            <sl-menu-item onclick="window.location.href='eartraining.html'">
+                <sl-icon slot="prefix" name="earbuds"></sl-icon>
+                Ear Training
+            </sl-menu-item>
+        </sl-menu>
+    </sl-dropdown>
+
+    <h1 style="text-align: center; margin-top: 0; font-weight: 300; letter-spacing: 2px; color: #00ccff;">Ear Training</h1>
+
+    <div id="settings-container">
+        <h3>Settings</h3>
+        <div class="settings-row" style="margin-left: 50px">
+            <div class="settings-group">
+                <span class="settings-label">Random Bands</span>
+                <sl-input id="setting_num_bands" type="number" min="1" max="10" value="3"
+                    class="input-inline"></sl-input>
+            </div>
+            <div class="settings-group">
+                <span class="settings-label">Gain</span>
+                <sl-select id="setting_max_gain" value="+-12" class="input-inline" style="width: 170px;">
+                    <sl-option value="+3">+3</sl-option>
+                    <sl-option value="+6">+6</sl-option>
+                    <sl-option value="+12">+12</sl-option>
+                    <sl-option value="-3">-3</sl-option>
+                    <sl-option value="-6">-6</sl-option>
+                    <sl-option value="-12">-12</sl-option>
+                    <sl-option value="+-3">-3/+3</sl-option>
+                    <sl-option value="+-6">-6/+6</sl-option>
+                    <sl-option value="+-12">-12/+12</sl-option>
+                    <sl-option value="mix">Mix All</sl-option>
+                </sl-select>
+            </div>
+            <div class="settings-group">
+                <span class="settings-label">Min Q</span>
+                <sl-input id="setting_min_q" type="number" step="0.1" min="0.5" max="4.0" value="0.5"
+                    class="input-inline"></sl-input>
+            </div>
+            <div class="settings-group">
+                <span class="settings-label">Max Q</span>
+                <sl-input id="setting_max_q" type="number" step="0.1" min="0.5" max="4.0" value="4.0"
+                    class="input-inline"></sl-input>
+            </div>
+            <div class="settings-group">
+                <span class="settings-label">Min Freq</span>
+                <sl-select id="setting_min_freq" value="125" class="input-inline">
+                    <sl-option value="31">31</sl-option>
+                    <sl-option value="62">62</sl-option>
+                    <sl-option value="125">125</sl-option>
+                    <sl-option value="250">250</sl-option>
+                    <sl-option value="500">500</sl-option>
+                    <sl-option value="1000">1k</sl-option>
+                    <sl-option value="2000">2k</sl-option>
+                    <sl-option value="4000">4k</sl-option>
+                    <sl-option value="8000">8k</sl-option>
+                    <sl-option value="16000">16k</sl-option>
+                </sl-select>
+            </div>
+            <div class="settings-group">
+                <span class="settings-label">Max Freq</span>
+                <sl-select id="setting_max_freq" value="16000" class="input-inline">
+                    <sl-option value="31">31</sl-option>
+                    <sl-option value="62">62</sl-option>
+                    <sl-option value="125">125</sl-option>
+                    <sl-option value="250">250</sl-option>
+                    <sl-option value="500">500</sl-option>
+                    <sl-option value="1000">1k</sl-option>
+                    <sl-option value="2000">2k</sl-option>
+                    <sl-option value="4000">4k</sl-option>
+                    <sl-option value="8000">8k</sl-option>
+                    <sl-option value="16000">16k</sl-option>
+                </sl-select>
+            </div>
+        </div>
+    </div>
+
+    <div id="control-container">
+        <div class="controls-row" style="margin-left: 50px">
+            <sl-button variant="success" size="large" id="btn_start">
+                <sl-icon slot="prefix" name="play-fill"></sl-icon> Play Audio
+            </sl-button>
+            <sl-button variant="danger" size="large" style="display: none;" id="btn_stop">
+                <sl-icon slot="prefix" name="stop-fill"></sl-icon> Stop Audio
+            </sl-button>
+
+            <sl-select id="audio_source" value="pink_noise" style="width: 200px;">
+                <sl-option value="generator">Tone Generator</sl-option>
+                <sl-option value="pink_noise">Pink Noise</sl-option>
+                <sl-option value="file">Local Audio File</sl-option>
+            </sl-select>
+
+            <input type="file" id="audio_file_input" style="display: none;" accept="audio/*" />
+        </div>
+
+        <div id="generator_controls" style="display: none; width: 100%;">
+            <div class="controls-row" style="margin-left: 50px; margin-bottom: 10px;">
+                <sl-switch id="toggle_osc2">Enable Oscillator 2</sl-switch>
+            </div>
+            <div id="osc1-controls" class="osc-group" style="align-items: center; width: 100%;">
+                <div class="volume-group" style="width: 200px">
+                    <label>Osc 1 Vol: <span id="label_vol1" class="freq-label">50%</span></label>
+                    <sl-range id="slider_vol1" min="0" max="100" value="50"></sl-range>
+                </div>
+                <div class="frequency-group" style="flex-grow: 1;">
+                    <label>Osc 1 Freq: <span id="label_osc1" class="freq-label">440.0 Hz</span></label>
+                    <sl-range id="slider_osc1" min="0" max="1000" value="439"></sl-range>
+                </div>
+            </div>
+            <div id="osc2-controls" class="osc-group"
+                style="align-items: center; width: 100%; display: none; margin-top: 10px;">
+                <div class="volume-group" style="width: 200px">
+                    <label>Osc 2 Vol: <span id="label_vol2" class="freq-label">50%</span></label>
+                    <sl-range id="slider_vol2" min="0" max="100" value="50"></sl-range>
+                </div>
+                <div class="frequency-group" style="flex-grow: 1;">
+                    <label>Osc 2 Freq: <span id="label_osc2" class="freq-label">1000.0 Hz</span></label>
+                    <sl-range id="slider_osc2" min="0" max="1000" value="565"></sl-range>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-row" style="margin-left: 50px; margin-top: 10px;">
+            <div class="settings-group">
+                <span class="settings-label">Monitoring</span>
+                <div id="monitoring_mode" style="display: flex; gap: 10px;">
+                    <sl-button variant="primary" pill class="monitor-btn" data-mode="question">Question (Z)</sl-button>
+                    <sl-button variant="default" pill class="monitor-btn" data-mode="user">Your EQ (X)</sl-button>
+                    <sl-button variant="default" pill class="monitor-btn" data-mode="bypass">Bypass (C)</sl-button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="eq-container">
+        <div class="eq-header">
+            <h3>Graphic Equalizer Workspace</h3>
+
+            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <div id="score-display">Score: 0%</div>
+                    <sl-button variant="primary" id="btn_submit">Submit</sl-button>
+                    <sl-button variant="warning" id="btn_next" style="display: none;">Next Question</sl-button>
+                </div>
+                <div id="result-text"></div>
+            </div>
+        </div>
+
+        <div id="eq-canvas-container">
+            <canvas id="eq-curve"></canvas>
+        </div>
+
+        <div id="eq-ui-container">
+            <div class="eq-sliders" id="eq-sliders"></div>
+        </div>
+    </div>
+
+    <footer>
+        <a href="https://github.com/longman694/audio-spectrum-eq" target="_blank">
+            <sl-icon name="github"></sl-icon> View on GitHub
+        </a>
+    </footer>
+
+    <script type="module">
+        // Basic element grabs
+        const startButton = document.getElementById('btn_start');
+        const stopButton = document.getElementById('btn_stop');
+        const audioSourceSelect = document.getElementById('audio_source');
+        const audioFileInput = document.getElementById('audio_file_input');
+
+        const eqSliders = document.getElementById('eq-sliders');
+        const canvas = document.getElementById('eq-curve');
+        const ctx = canvas.getContext('2d');
+
+        const btnSubmit = document.getElementById('btn_submit');
+        const btnNext = document.getElementById('btn_next');
+        const scoreDisplay = document.getElementById('score-display');
+        const resultText = document.getElementById('result-text');
+
+        const settingNumBands = document.getElementById('setting_num_bands');
+        const settingMaxGain = document.getElementById('setting_max_gain');
+        const settingMinQ = document.getElementById('setting_min_q');
+        const settingMaxQ = document.getElementById('setting_max_q');
+        const settingMinFreq = document.getElementById('setting_min_freq');
+        const settingMaxFreq = document.getElementById('setting_max_freq');
+        const monitorButtons = document.querySelectorAll('.monitor-btn');
+
+        // Setup Variables
+        let audioContext;
+        let sourceGain, userBus, targetBus, bypassBus;
+        let activeSourceNode = null;
+        let osc1, osc2, gain1, gain2;
+
+        let fileAudioBuffer = null;
+        let isPlaying = false;
+        let isSubmitted = false;
+
+        const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+        const MIN_FREQ = 20;
+        const MAX_FREQ = 20000;
+
+        // Parallel Filters
+        const userFilters = [];
+        const targetFilters = [];
+        const mathContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
+
+        // Generator Controls
+        const toggleOsc2 = document.getElementById('toggle_osc2');
+        const osc2Controls = document.getElementById('osc2-controls');
+        const sliderOsc1 = document.getElementById('slider_osc1');
+        const sliderOsc2 = document.getElementById('slider_osc2');
+        const labelOsc1 = document.getElementById('label_osc1');
+        const labelOsc2 = document.getElementById('label_osc2');
+        const sliderVol1 = document.getElementById('slider_vol1');
+        const sliderVol2 = document.getElementById('slider_vol2');
+        const labelVol1 = document.getElementById('label_vol1');
+        const labelVol2 = document.getElementById('label_vol2');
+        const generatorControls = document.getElementById('generator_controls');
+
+        // Initialize UI Graphic EQ
+        EQ_FREQS.forEach((freq, index) => {
+            const uF = mathContext.createBiquadFilter();
+            uF.type = 'peaking'; uF.frequency.value = freq; uF.Q.value = 2; uF.gain.value = 0;
+            userFilters.push(uF);
+
+            const tF = mathContext.createBiquadFilter();
+            tF.type = 'peaking'; tF.frequency.value = freq; tF.Q.value = 2; tF.gain.value = 0;
+            targetFilters.push(tF);
+
+            const bandDiv = document.createElement('div');
+            bandDiv.className = 'eq-band';
+
+            // UI elements
+            const gainGroup = document.createElement('div'); gainGroup.className = 'input-group';
+            const gainLabel = document.createElement('div'); gainLabel.className = 'eq-param-label'; gainLabel.innerText = 'Gain';
+            const gainInput = document.createElement('input'); gainInput.type = 'number'; gainInput.className = 'eq-input'; gainInput.step = '0.1'; gainInput.value = '0.0';
+            gainGroup.appendChild(gainLabel); gainGroup.appendChild(gainInput);
+
+            const sliderWrap = document.createElement('div'); sliderWrap.className = 'eq-slider-wrapper';
+            const slider = document.createElement('input'); slider.type = 'range'; slider.className = 'vertical-slider';
+            slider.min = -24; slider.max = 24; slider.step = 0.1; slider.value = 0; slider.setAttribute('orient', 'vertical');
+            sliderWrap.appendChild(slider);
+
+            const freqGroup = document.createElement('div'); freqGroup.className = 'input-group';
+            const freqLabel = document.createElement('div'); freqLabel.className = 'eq-param-label'; freqLabel.innerText = 'Freq';
+            const freqInput = document.createElement('input'); freqInput.type = 'number'; freqInput.className = 'eq-input'; freqInput.value = freq; freqInput.disabled = true;
+            freqGroup.appendChild(freqLabel); freqGroup.appendChild(freqInput);
+
+            const qGroup = document.createElement('div'); qGroup.className = 'input-group';
+            const qLabel = document.createElement('div'); qLabel.className = 'eq-param-label'; qLabel.innerText = 'Q';
+            const qInput = document.createElement('input'); qInput.type = 'number'; qInput.className = 'eq-input'; qInput.step = '0.1'; qInput.value = '2.0';
+            qGroup.appendChild(qLabel); qGroup.appendChild(qInput);
+
+            // Events
+            slider.addEventListener('wheel', (e) => {
+                if (isSubmitted) return; e.preventDefault();
+                const change = (e.deltaY > 0 ? -1 : 1) * (e.shiftKey ? 0.1 : 1.0);
+                let val = parseFloat(slider.value) + change;
+                val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
+                slider.value = val; userFilters[index].gain.value = val; gainInput.value = val.toFixed(1);
+                scheduleUpdate();
+            });
+            slider.addEventListener('input', (e) => {
+                if (isSubmitted) { e.preventDefault(); return; }
+                const val = parseFloat(e.target.value);
+                userFilters[index].gain.value = val; gainInput.value = val.toFixed(1);
+                scheduleUpdate();
+            });
+            gainInput.addEventListener('input', (e) => {
+                if (isSubmitted) return;
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) { userFilters[index].gain.value = val; slider.value = val; scheduleUpdate(); }
+            });
+            qInput.addEventListener('input', (e) => {
+                if (isSubmitted) return;
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val > 0) { userFilters[index].Q.value = val; scheduleUpdate(); }
+            });
+
+            bandDiv.appendChild(gainGroup); bandDiv.appendChild(sliderWrap); bandDiv.appendChild(freqGroup); bandDiv.appendChild(qGroup);
+            eqSliders.appendChild(bandDiv);
+        });
+
+        let drawTimeout = null;
+        function scheduleUpdate() {
+            if (drawTimeout) cancelAnimationFrame(drawTimeout);
+            drawTimeout = requestAnimationFrame(() => drawEQCurve());
+        }
+
+        // --- AUDIO GRAPH INIT ---
+        function ensureAudioContext() {
+            if (audioContext) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            sourceGain = audioContext.createGain();
+            userBus = audioContext.createGain();
+            targetBus = audioContext.createGain();
+            bypassBus = audioContext.createGain();
+
+            userBus.gain.value = 0; targetBus.gain.value = 1; bypassBus.gain.value = 0;
+
+            let lastNode = userBus;
+            userFilters.forEach((uf, i) => {
+                const f = audioContext.createBiquadFilter();
+                f.type = 'peaking'; f.frequency.value = uf.frequency.value;
+                f.Q.value = uf.Q.value; f.gain.value = uf.gain.value;
+                uf.realFilter = f;
+                lastNode.connect(f); lastNode = f;
+            });
+            lastNode.connect(audioContext.destination);
+
+            lastNode = targetBus;
+            targetFilters.forEach((tf, i) => {
+                const f = audioContext.createBiquadFilter();
+                f.type = 'peaking'; f.frequency.value = tf.frequency.value;
+                f.Q.value = tf.Q.value; f.gain.value = tf.gain.value;
+                tf.realFilter = f;
+                lastNode.connect(f); lastNode = f;
+            });
+            lastNode.connect(audioContext.destination);
+
+            bypassBus.connect(audioContext.destination);
+
+            sourceGain.connect(userBus);
+            sourceGain.connect(targetBus);
+            sourceGain.connect(bypassBus);
+
+            syncRealFilters();
+            setMonitoringMode(monitoringMode.value);
+        }
+
+        function syncRealFilters() {
+            if (!audioContext) return;
+            userFilters.forEach(uf => {
+                if (uf.realFilter) { uf.realFilter.gain.value = uf.gain.value; uf.realFilter.Q.value = uf.Q.value; }
+            });
+            targetFilters.forEach(tf => {
+                if (tf.realFilter) { tf.realFilter.gain.value = tf.gain.value; tf.realFilter.Q.value = tf.Q.value; }
+            });
+        }
+
+        // --- DRAW CURVES ---
+        function resizeCanvas() { canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; scheduleUpdate(); }
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawCurveData(plotWidth, filters, outputMag) {
+            const freqs = new Float32Array(plotWidth);
+            outputMag.fill(1.0);
+            for (let i = 0; i < plotWidth; i++) freqs[i] = MIN_FREQ * Math.pow(MAX_FREQ / MIN_FREQ, i / (plotWidth - 1));
+
+            filters.forEach(filter => {
+                const mag = new Float32Array(plotWidth), phase = new Float32Array(plotWidth);
+                filter.getFrequencyResponse(freqs, mag, phase);
+                for (let i = 0; i < plotWidth; i++) outputMag[i] *= mag[i];
+            });
+        }
+
+        function drawEQCurve() {
+            const width = canvas.width, height = canvas.height;
+            ctx.clearRect(0, 0, width, height);
+            const PAD_L = 45, PAD_R = 15, PAD_T = 15, PAD_B = 25;
+            const pW = width - PAD_L - PAD_R, pH = height - PAD_T - PAD_B;
+            if (pW <= 0 || pH <= 0) return;
+
+            const maxDb = 24, minDb = -24;
+
+            ctx.font = '11px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+            [24, 12, 0, -12, -24].forEach(db => {
+                const y = PAD_T + pH - ((db - minDb) / (maxDb - minDb)) * pH;
+                ctx.fillStyle = db === 0 ? '#00ccff' : '#888'; ctx.fillText((db > 0 ? '+' : '') + db + ' dB', PAD_L - 5, y);
+                ctx.beginPath(); ctx.strokeStyle = db === 0 ? '#555' : '#222'; ctx.moveTo(PAD_L, y); ctx.lineTo(PAD_L + pW, y); ctx.stroke();
+            });
+            ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = '#888';
+            EQ_FREQS.forEach(freq => {
+                const x = PAD_L + pW * (Math.log(freq / MIN_FREQ) / Math.log(MAX_FREQ / MIN_FREQ));
+                ctx.fillText(freq >= 1000 ? (freq / 1000) + 'k' : freq, x, PAD_T + pH + 5);
+                ctx.beginPath(); ctx.strokeStyle = '#222'; ctx.moveTo(x, PAD_T); ctx.lineTo(x, PAD_T + pH); ctx.stroke();
+            });
+
+            syncRealFilters();
+
+            if (isSubmitted) {
+                const targetMag = new Float32Array(Math.floor(pW));
+                drawCurveData(Math.floor(pW), targetFilters, targetMag);
+                ctx.beginPath(); ctx.strokeStyle = '#ff00aa'; ctx.lineWidth = 2;
+                for (let i = 0; i < Math.floor(pW); i++) {
+                    let db = 20 * Math.log10(targetMag[i] || 1);
+                    db = Math.max(minDb, Math.min(maxDb, db));
+                    const x = PAD_L + i, y = PAD_T + pH - ((db - minDb) / (maxDb - minDb)) * pH;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            const userMag = new Float32Array(Math.floor(pW));
+            drawCurveData(Math.floor(pW), userFilters, userMag);
+            ctx.beginPath(); ctx.strokeStyle = '#00ccff'; ctx.lineWidth = 2;
+            for (let i = 0; i < Math.floor(pW); i++) {
+                let db = 20 * Math.log10(userMag[i] || 1);
+                db = Math.max(minDb, Math.min(maxDb, db));
+                const x = PAD_L + i, y = PAD_T + pH - ((db - minDb) / (maxDb - minDb)) * pH;
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        // --- RANDOM QUESTION LOGIC ---
+        function generateQuestion() {
+            targetFilters.forEach(f => { f.gain.value = 0; f.Q.value = 2; });
+            userFilters.forEach((f, i) => { f.gain.value = 0; f.Q.value = 2; updateSliderUI(i, 0, 2); });
+
+            let activeBands = parseInt(settingNumBands.value) || 3;
+            let gainMode = settingMaxGain.value;
+            let minQ = parseFloat(settingMinQ.value) || 0.5;
+            let maxQ = parseFloat(settingMaxQ.value) || 4.0;
+            let minFreq = parseFloat(settingMinFreq.value) || 125;
+            let maxFreq = parseFloat(settingMaxFreq.value) || 16000;
+
+            let validIndices = [];
+            EQ_FREQS.forEach((freq, i) => {
+                if (freq >= minFreq && freq <= maxFreq) validIndices.push(i);
+            });
+            validIndices.sort(() => Math.random() - 0.5);
+            const selected = validIndices.slice(0, Math.min(activeBands, validIndices.length));
+
+            selected.forEach(idx => {
+                let gain = 0;
+                if (gainMode === '+3') gain = 3;
+                else if (gainMode === '+6') gain = 6;
+                else if (gainMode === '+12') gain = 12;
+                else if (gainMode === '-3') gain = -3;
+                else if (gainMode === '-6') gain = -6;
+                else if (gainMode === '-12') gain = -12;
+                else if (gainMode === '+-3') gain = Math.random() < 0.5 ? 3 : -3;
+                else if (gainMode === '+-6') gain = Math.random() < 0.5 ? 6 : -6;
+                else if (gainMode === '+-12') gain = Math.random() < 0.5 ? 12 : -12;
+                else if (gainMode === 'mix') {
+                    const pool = [3, -3, 6, -6, 12, -12];
+                    gain = pool[Math.floor(Math.random() * pool.length)];
+                } else gain = 3;
+                targetFilters[idx].gain.value = gain;
+
+                let q = minQ + Math.random() * (maxQ - minQ);
+                q = Math.round(q * 10) / 10;
+                targetFilters[idx].Q.value = q;
+            });
+
+            syncRealFilters();
+            isSubmitted = false;
+            btnSubmit.style.display = 'block';
+            btnNext.style.display = 'none';
+            scoreDisplay.style.display = 'none';
+            resultText.innerText = '';
+
+            eqSliders.querySelectorAll('.eq-band').forEach(b => {
+                b.querySelector('.vertical-slider').disabled = false;
+                b.querySelectorAll('.eq-input').forEach((i, j) => { if (j !== 1) i.disabled = false; }); // leave freq disabled
+            });
+
+            setMonitoringMode('question');
+            scheduleUpdate();
+        }
+
+        function updateSliderUI(index, gain, q) {
+            const band = eqSliders.querySelectorAll('.eq-band')[index];
+            band.querySelector('.vertical-slider').value = gain;
+            const inputs = band.querySelectorAll('.eq-input');
+            inputs[0].value = gain.toFixed(1);
+            inputs[2].value = q.toFixed(1);
+        }
+
+        // --- SCORE LOGIC ---
+        function submitAnswer() {
+            if (isSubmitted) return;
+            isSubmitted = true;
+
+            const pW = canvas.width - 60;
+            const uM = new Float32Array(pW), tM = new Float32Array(pW);
+            drawCurveData(pW, userFilters, uM);
+            drawCurveData(pW, targetFilters, tM);
+
+            let totalError = 0;
+            for (let i = 0; i < pW; i++) {
+                let uDB = 20 * Math.log10(uM[i] || 1);
+                let tDB = 20 * Math.log10(tM[i] || 1);
+                totalError += Math.abs(uDB - tDB);
+            }
+
+            const avgError = totalError / pW;
+            let score = 100 - (avgError * 5);
+            score = Math.max(0, Math.min(100, Math.round(score)));
+
+            scoreDisplay.innerText = `Score: ${score}%`;
+            scoreDisplay.style.display = 'block';
+            scoreDisplay.style.color = score > 85 ? '#00ff00' : (score > 60 ? '#ffff00' : '#ff3333');
+            resultText.innerText = `Average discrepancy: ${avgError.toFixed(2)} dB`;
+
+            setMonitoringMode('user');
+
+            btnSubmit.style.display = 'none';
+            btnNext.style.display = 'block';
+
+            eqSliders.querySelectorAll('input').forEach(i => i.disabled = true);
+            scheduleUpdate();
+        }
+
+        // Audio Logic
+        function setMonitoringMode(mode) {
+            if (!audioContext) return;
+            userBus.gain.value = mode === 'user' ? 1 : 0;
+            targetBus.gain.value = mode === 'question' ? 1 : 0;
+            bypassBus.gain.value = mode === 'bypass' ? 1 : 0;
+
+            monitorButtons.forEach(btn => {
+                btn.variant = (btn.dataset.mode === mode) ? 'primary' : 'default';
+            });
+        }
+
+        monitorButtons.forEach(btn => {
+            btn.addEventListener('click', () => setMonitoringMode(btn.dataset.mode));
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (['INPUT', 'SL-INPUT'].includes(e.target.tagName)) return;
+            const key = e.key.toLowerCase();
+            if (key === 'z') setMonitoringMode('question');
+            if (key === 'x') setMonitoringMode('user');
+            if (key === 'c') setMonitoringMode('bypass');
+        });
+        btnSubmit.addEventListener('click', submitAnswer);
+        btnNext.addEventListener('click', generateQuestion);
+
+        audioSourceSelect.addEventListener('sl-change', (e) => {
+            const val = e.target.value;
+            generatorControls.style.display = val === 'generator' ? 'block' : 'none';
+            if (val === 'file') {
+                audioFileInput.style.display = 'block';
+            } else {
+                audioFileInput.style.display = 'none';
+                if (isPlaying) { stopAudio(); startAudio(); }
+            }
+        });
+
+        audioFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                ensureAudioContext();
+                fileAudioBuffer = await audioContext.decodeAudioData(ev.target.result);
+                if (isPlaying) { stopAudio(); startAudio(); }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function getLogFreq(val) { return MIN_FREQ * Math.pow(MAX_FREQ / MIN_FREQ, val / 1000); }
+        function formatFreq(f) { return f >= 1000 ? (f / 1000).toFixed(2) + " kHz" : f.toFixed(1) + " Hz"; }
+        customElements.whenDefined('sl-range').then(() => {
+            if (sliderOsc1) {
+                sliderOsc1.tooltipFormatter = v => formatFreq(getLogFreq(v));
+                sliderOsc2.tooltipFormatter = v => formatFreq(getLogFreq(v));
+                labelOsc1.innerText = formatFreq(getLogFreq(sliderOsc1.value));
+                labelOsc2.innerText = formatFreq(getLogFreq(sliderOsc2.value));
+            }
+        });
+
+        sliderOsc1.addEventListener('sl-input', () => {
+            const f = getLogFreq(sliderOsc1.value); labelOsc1.innerText = formatFreq(f);
+            if (isPlaying && osc1) osc1.frequency.setTargetAtTime(f, audioContext.currentTime, 0.05);
+        });
+        sliderOsc2.addEventListener('sl-input', () => {
+            const f = getLogFreq(sliderOsc2.value); labelOsc2.innerText = formatFreq(f);
+            if (isPlaying && osc2) osc2.frequency.setTargetAtTime(f, audioContext.currentTime, 0.05);
+        });
+        sliderVol1.addEventListener('sl-input', () => {
+            labelVol1.innerText = sliderVol1.value + "%";
+            if (isPlaying && gain1) gain1.gain.setTargetAtTime((sliderVol1.value / 100) * 0.5, audioContext.currentTime, 0.05);
+        });
+        sliderVol2.addEventListener('sl-input', () => {
+            labelVol2.innerText = sliderVol2.value + "%";
+            if (isPlaying && gain2) gain2.gain.setTargetAtTime((sliderVol2.value / 100) * 0.5, audioContext.currentTime, 0.05);
+        });
+        toggleOsc2.addEventListener('sl-change', () => {
+            osc2Controls.style.display = toggleOsc2.checked ? 'flex' : 'none';
+            if (isPlaying) {
+                if (toggleOsc2.checked) {
+                    osc2 = audioContext.createOscillator(); gain2 = audioContext.createGain();
+                    osc2.frequency.value = getLogFreq(sliderOsc2.value); gain2.gain.value = (sliderVol2.value / 100) * 0.5;
+                    osc2.connect(gain2); gain2.connect(sourceGain); osc2.start();
+                } else if (osc2) {
+                    osc2.stop(); osc2.disconnect(); gain2.disconnect(); osc2 = null;
+                }
+            }
+        });
+
+        function createPinkNoiseBuffer(audioCtx) {
+            const bufferSize = 2 * audioCtx.sampleRate;
+            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                let white = Math.random() * 2 - 1;
+                b0 = 0.99886 * b0 + white * 0.0555179; b1 = 0.99332 * b1 + white * 0.0750759; b2 = 0.96900 * b2 + white * 0.1538520;
+                b3 = 0.86650 * b3 + white * 0.3104856; b4 = 0.55000 * b4 + white * 0.5329522; b5 = -0.7616 * b5 - white * 0.0168980;
+                output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+                output[i] *= 0.11; b6 = white * 0.115926;
+            }
+            return noiseBuffer;
+        }
+
+        async function startAudio() {
+            if (isPlaying) return;
+            ensureAudioContext();
+            if (audioContext.state === 'suspended') await audioContext.resume();
+
+            isPlaying = true;
+            const type = audioSourceSelect.value;
+
+            if (type === 'generator') {
+                osc1 = audioContext.createOscillator(); gain1 = audioContext.createGain();
+                osc1.frequency.value = getLogFreq(sliderOsc1.value); gain1.gain.value = (sliderVol1.value / 100) * 0.5;
+                osc1.connect(gain1); gain1.connect(sourceGain); osc1.start();
+
+                if (toggleOsc2.checked) {
+                    osc2 = audioContext.createOscillator(); gain2 = audioContext.createGain();
+                    osc2.frequency.value = getLogFreq(sliderOsc2.value); gain2.gain.value = (sliderVol2.value / 100) * 0.5;
+                    osc2.connect(gain2); gain2.connect(sourceGain); osc2.start();
+                }
+            } else if (type === 'pink_noise') {
+                activeSourceNode = audioContext.createBufferSource();
+                activeSourceNode.buffer = createPinkNoiseBuffer(audioContext);
+                activeSourceNode.loop = true;
+                activeSourceNode.connect(sourceGain);
+                activeSourceNode.start();
+            } else if (type === 'file') {
+                if (!fileAudioBuffer) {
+                    const file = audioFileInput.files && audioFileInput.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = async (ev) => {
+                            fileAudioBuffer = await audioContext.decodeAudioData(ev.target.result);
+                            startAudio();
+                        };
+                        reader.readAsArrayBuffer(file);
+                    } else {
+                        alert("Please select an audio file first!");
+                        isPlaying = false;
+                    }
+                    return;
+                }
+                activeSourceNode = audioContext.createBufferSource();
+                activeSourceNode.buffer = fileAudioBuffer;
+                activeSourceNode.loop = true;
+                activeSourceNode.connect(sourceGain);
+                activeSourceNode.start();
+            }
+
+            startButton.style.display = 'none'; stopButton.style.display = 'block';
+        }
+
+        function stopAudio() {
+            if (!isPlaying) return;
+            isPlaying = false;
+
+            if (osc1) { osc1.stop(); osc1.disconnect(); gain1.disconnect(); osc1 = null; }
+            if (osc2) { osc2.stop(); osc2.disconnect(); gain2.disconnect(); osc2 = null; }
+            if (activeSourceNode) { activeSourceNode.stop(); activeSourceNode.disconnect(); activeSourceNode = null; }
+
+            startButton.style.display = 'block'; stopButton.style.display = 'none';
+        }
+
+        // Final Event Listeners
+        settingNumBands.addEventListener('sl-change', generateQuestion);
+        settingMaxGain.addEventListener('sl-change', generateQuestion);
+        settingMinQ.addEventListener('sl-change', generateQuestion);
+        settingMaxQ.addEventListener('sl-change', generateQuestion);
+
+        startButton.addEventListener('click', startAudio);
+        stopButton.addEventListener('click', stopAudio);
+
+        // Run once
+        generateQuestion();
+        resizeCanvas();
+    </script>
+</body>
+
+</html>
