@@ -114,8 +114,8 @@
                 margin: 10px 0;
             }
             input[type=range].vertical-slider {
-                writing-mode: bt-lr; /* IE/Edge */
-                -webkit-appearance: slider-vertical; /* WebKit */
+                writing-mode: vertical-lr; /* Recommended */
+                direction: rtl; /* Makes it go bottom-up */
                 width: 8px;
                 height: 150px;
                 padding: 0 5px;
@@ -272,31 +272,17 @@
             const MAX_FREQ = 20000;
 
             // --- IMMEDIATE INITIALIZATION ---
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            // Force the context to initialize its sample rate for the math to work before playing
-            if (audioContext.state === 'suspended') {
-                audioContext.resume().then(() => {
-                    audioContext.suspend(); 
-                    drawEQCurve(); // Redraw once sample rate is guaranteed
-                });
-            }
+            // Use an OfflineAudioContext to avoid "AudioContext not allowed to start" warnings on load
+            const mathContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
 
-            eqBus = audioContext.createGain();
-
-            // Build the EQ filter chain and UI
+            // Build the EQ UI and math filters for drawing the curve
             EQ_FREQS.forEach((freq, index) => {
-                const filter = audioContext.createBiquadFilter();
+                const filter = mathContext.createBiquadFilter();
                 filter.type = 'peaking';
                 filter.frequency.value = freq;
                 filter.Q.value = 2; 
                 filter.gain.value = 0; 
 
-                if (index === 0) {
-                    eqBus.connect(filter);
-                } else {
-                    eqFilters[index - 1].connect(filter);
-                }
                 eqFilters.push(filter);
 
                 const bandDiv = document.createElement('div');
@@ -359,9 +345,23 @@
                 // --- EVENT LISTENERS ---
                 // We removed the setTargetAtTime delay when stopped to ensure instant parameter updates
                 
+                slider.addEventListener('wheel', (e) => {
+                    e.preventDefault(); 
+                    const direction = e.deltaY > 0 ? -1 : 1;
+                    const change = direction * (e.shiftKey ? 0.1 : 1.0);
+                    
+                    let val = parseFloat(slider.value) + change;
+                    val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
+                    
+                    slider.value = val;
+                    eqFilters[index].gain.value = val;
+                    gainInput.value = val.toFixed(1);
+                    drawEQCurve();
+                });
+
                 slider.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
-                    filter.gain.value = val; 
+                    eqFilters[index].gain.value = val; 
                     gainInput.value = val.toFixed(1);
                     drawEQCurve();
                 });
@@ -369,7 +369,7 @@
                 gainInput.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
                     if(!isNaN(val)) {
-                        filter.gain.value = val;
+                        eqFilters[index].gain.value = val;
                         slider.value = val;
                         drawEQCurve();
                     }
@@ -378,7 +378,7 @@
                 freqInput.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
                     if(!isNaN(val) && val > 0) {
-                        filter.frequency.value = val;
+                        eqFilters[index].frequency.value = val;
                         drawEQCurve();
                     }
                 });
@@ -386,7 +386,7 @@
                 qInput.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
                     if(!isNaN(val) && val >= 0) {
-                        filter.Q.value = val;
+                        eqFilters[index].Q.value = val;
                         drawEQCurve();
                     }
                 });
@@ -398,7 +398,7 @@
                 eqSliders.appendChild(bandDiv);
             });
 
-            eqFilters[eqFilters.length - 1].connect(audioContext.destination);
+            // Graph path is connected in ensureAudioContext
 
             // --- RESPONSIVE GRAPH LOGIC & DRAWING ---
             
@@ -537,6 +537,15 @@
                 return freq.toFixed(1) + " Hz";
             }
 
+            customElements.whenDefined('sl-range').then(() => {
+                sliderOsc1.tooltipFormatter = value => formatFrequency(getLogFrequency(value));
+                sliderOsc2.tooltipFormatter = value => formatFrequency(getLogFrequency(value));
+                updateFrequency(1);
+                updateFrequency(2);
+                updateVolume(1);
+                updateVolume(2);
+            });
+
             function updateFrequency(oscNumber) {
                 if (oscNumber === 1) {
                     const freq = getLogFrequency(sliderOsc1.value);
@@ -594,9 +603,39 @@
                 }
             }
             
+            function ensureAudioContext() {
+                if (audioContext) return;
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                eqBus = audioContext.createGain();
+                
+                const realFilters = [];
+                for (let i = 0; i < EQ_FREQS.length; i++) {
+                    const realFilter = audioContext.createBiquadFilter();
+                    const mathFilter = eqFilters[i]; 
+                    
+                    realFilter.type = 'peaking';
+                    realFilter.frequency.value = mathFilter.frequency.value;
+                    realFilter.Q.value = mathFilter.Q.value;
+                    realFilter.gain.value = mathFilter.gain.value;
+                    
+                    if (i === 0) {
+                        eqBus.connect(realFilter);
+                    } else {
+                        realFilters[i - 1].connect(realFilter);
+                    }
+                    realFilters.push(realFilter);
+                }
+                realFilters[realFilters.length - 1].connect(audioContext.destination);
+                
+                // Swap math filters for real filters safely
+                eqFilters.splice(0, eqFilters.length, ...realFilters);
+            }
+
             async function startGenerator() {
                 if (isPlaying) return;
                 
+                ensureAudioContext();
+
                 if (audioContext.state === 'suspended') {
                     await audioContext.resume();
                 }
@@ -636,10 +675,7 @@
                 destroyButton.style.display = 'none';
             }
             
-            updateFrequency(1);
-            updateFrequency(2);
-            updateVolume(1);
-            updateVolume(2);
+
         </script>
     </body>
 </html>
