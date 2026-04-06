@@ -209,7 +209,7 @@
 
 <body>
     <!-- Floating Navigation -->
-    <sl-dropdown placement="bottom-start" style="position: fixed; top: 20px; left: 20px; z-index: 1000;">
+    <sl-dropdown placement="bottom-end" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
         <sl-button slot="trigger" circle size="large">
             <sl-icon name="list"></sl-icon>
         </sl-button>
@@ -229,10 +229,11 @@
         </sl-menu>
     </sl-dropdown>
 
-    <h1 style="text-align: center; margin-top: 0; font-weight: 300; letter-spacing: 2px; color: #00ccff;">Tone Generator</h1>
+    <h1 style="text-align: center; margin-top: 0; font-weight: 300; letter-spacing: 2px; color: #00ccff;">Tone Generator
+    </h1>
 
     <div id="control-container">
-        <div class="controls-row" style="margin-left: 50px">
+        <div class="controls-row">
             <sl-button variant="success" size="large" id="btn_start">
                 <sl-icon slot="prefix" name="play-fill"></sl-icon> Start Generator
             </sl-button>
@@ -358,7 +359,7 @@
             slider.className = 'vertical-slider';
             slider.min = -24;
             slider.max = 24;
-            slider.step = 0.1;
+            slider.step = 3;
             slider.value = 0;
             slider.setAttribute('orient', 'vertical');
             sliderWrap.appendChild(slider);
@@ -396,7 +397,7 @@
             slider.addEventListener('wheel', (e) => {
                 e.preventDefault();
                 const direction = e.deltaY > 0 ? -1 : 1;
-                const change = direction * (e.shiftKey ? 0.1 : 1.0);
+                const change = direction * 3;
 
                 let val = parseFloat(slider.value) + change;
                 val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));

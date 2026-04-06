@@ -216,7 +216,7 @@
 
 <body>
     <!-- Floating Navigation -->
-    <sl-dropdown placement="bottom-start" style="position: fixed; top: 20px; left: 20px; z-index: 1000;">
+    <sl-dropdown placement="bottom-end" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
         <sl-button slot="trigger" circle size="large">
             <sl-icon name="list"></sl-icon>
         </sl-button>
@@ -236,19 +236,20 @@
         </sl-menu>
     </sl-dropdown>
 
-    <h1 style="text-align: center; margin-top: 0; font-weight: 300; letter-spacing: 2px; color: #00ccff;">Ear Training</h1>
+    <h1 style="text-align: center; margin-top: 0; font-weight: 300; letter-spacing: 2px; color: #00ccff;">Ear Training
+    </h1>
 
     <div id="settings-container">
         <h3>Settings</h3>
-        <div class="settings-row" style="margin-left: 50px">
+        <div class="settings-row">
             <div class="settings-group">
                 <span class="settings-label">Random Bands</span>
-                <sl-input id="setting_num_bands" type="number" min="1" max="10" value="3"
+                <sl-input id="setting_num_bands" type="number" min="1" max="10" value="1"
                     class="input-inline"></sl-input>
             </div>
             <div class="settings-group">
                 <span class="settings-label">Gain</span>
-                <sl-select id="setting_max_gain" value="+-12" class="input-inline" style="width: 170px;">
+                <sl-select id="setting_max_gain" value="+-6" class="input-inline" style="width: 170px;">
                     <sl-option value="+3">+3</sl-option>
                     <sl-option value="+6">+6</sl-option>
                     <sl-option value="+12">+12</sl-option>
@@ -263,12 +264,12 @@
             </div>
             <div class="settings-group">
                 <span class="settings-label">Min Q</span>
-                <sl-input id="setting_min_q" type="number" step="0.1" min="0.5" max="4.0" value="0.5"
+                <sl-input id="setting_min_q" type="number" step="0.1" min="0.5" max="4.0" value="2.0"
                     class="input-inline"></sl-input>
             </div>
             <div class="settings-group">
                 <span class="settings-label">Max Q</span>
-                <sl-input id="setting_max_q" type="number" step="0.1" min="0.5" max="4.0" value="4.0"
+                <sl-input id="setting_max_q" type="number" step="0.1" min="0.5" max="4.0" value="2.0"
                     class="input-inline"></sl-input>
             </div>
             <div class="settings-group">
@@ -305,7 +306,7 @@
     </div>
 
     <div id="control-container">
-        <div class="controls-row" style="margin-left: 50px">
+        <div class="controls-row" style="margin: auto">
             <sl-button variant="success" size="large" id="btn_start">
                 <sl-icon slot="prefix" name="play-fill"></sl-icon> Play Audio
             </sl-button>
@@ -323,7 +324,7 @@
         </div>
 
         <div id="generator_controls" style="display: none; width: 100%;">
-            <div class="controls-row" style="margin-left: 50px; margin-bottom: 10px;">
+            <div class="controls-row" style="margin: auto; margin-bottom: 10px;">
                 <sl-switch id="toggle_osc2">Enable Oscillator 2</sl-switch>
             </div>
             <div id="osc1-controls" class="osc-group" style="align-items: center; width: 100%;">
@@ -349,7 +350,7 @@
             </div>
         </div>
 
-        <div class="controls-row" style="margin-left: 50px; margin-top: 10px;">
+        <div class="controls-row" style="margin: auto; margin-top: 10px;">
             <div class="settings-group">
                 <span class="settings-label">Monitoring</span>
                 <div id="monitoring_mode" style="display: flex; gap: 10px;">
@@ -467,7 +468,7 @@
 
             const sliderWrap = document.createElement('div'); sliderWrap.className = 'eq-slider-wrapper';
             const slider = document.createElement('input'); slider.type = 'range'; slider.className = 'vertical-slider';
-            slider.min = -24; slider.max = 24; slider.step = 0.1; slider.value = 0; slider.setAttribute('orient', 'vertical');
+            slider.min = -24; slider.max = 24; slider.step = 3; slider.value = 0; slider.setAttribute('orient', 'vertical');
             sliderWrap.appendChild(slider);
 
             const freqGroup = document.createElement('div'); freqGroup.className = 'input-group';
@@ -483,7 +484,7 @@
             // Events
             slider.addEventListener('wheel', (e) => {
                 if (isSubmitted) return; e.preventDefault();
-                const change = (e.deltaY > 0 ? -1 : 1) * (e.shiftKey ? 0.1 : 1.0);
+                const change = (e.deltaY > 0 ? -3 : 3);
                 let val = parseFloat(slider.value) + change;
                 val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
                 slider.value = val; userFilters[index].gain.value = val; gainInput.value = val.toFixed(1);
