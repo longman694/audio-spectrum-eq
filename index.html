@@ -196,6 +196,7 @@
             }
 
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const nyquist = audioContext.sampleRate / 2;
             source = audioContext.createMediaElementSource(audioEl);
             weq8 = new WEQ8Runtime(audioContext);
 
@@ -204,7 +205,7 @@
                 connectSpeakers: false,
                 frequencyScale: 'log',
                 minFreq: 10,
-                maxFreq: 24000,
+                maxFreq: nyquist,
                 gradient: 'prism',
                 mode: 0,
                 ansiBands: true,
